@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t\t\t\t\t\t\tINSERT INTO topics\n\t\t\t\t\t\t\t\tVALUES ($1, $2, $3)\n\t\t\t\t\t\t\t\t",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b7b1ab9abc5b80dd3f98454bfccde62b2c4081c4d48458990eeb8e46bcf6c830"
+}

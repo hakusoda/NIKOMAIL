@@ -1,0 +1,44 @@
+cargo-features = ["edition2024"]
+
+[package]
+name = "nikomail"
+description = "anonymous mail prototype"
+
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+sqlx.workspace = true
+tokio.workspace = true
+serde = { version = "1.0.203", features = ["derive"] }
+chrono = { version = "0.4.38", features = ["serde"] }
+tracing = "0.1.40"
+futures.workspace = true
+dashmap.workspace = true
+reqwest = { version = "0.12.4", features = ["json"] }
+mimalloc = "0.1.42"
+thiserror.workspace = true
+once_cell.workspace = true
+simd-json = "0.13.10"
+serde_repr = "0.1.19"
+serde_json = "1.0.117"
+signal-hook = "0.3.17"
+derive_more = "0.99.17"
+nikomail_util.path = "../nikomail_util"
+tracing-error.workspace = true
+twilight-http.workspace = true
+twilight-util = { version = "0.15.4", features = ["builder"] }
+twilight-model.workspace = true
+nikomail_cache.path = "../nikomail_cache"
+nikomail_macros.path = "../nikomail_macros"
+nikomail_models.path = "../nikomail_models"
+twilight-gateway.workspace = true
+twilight-validate = "0.15.3"
+tracing-subscriber = "0.3.18"
+async-trait = "0.1.80"

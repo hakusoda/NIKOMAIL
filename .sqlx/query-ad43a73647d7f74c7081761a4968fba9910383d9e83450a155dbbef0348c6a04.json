@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t\t\t\t\tDELETE from topics\n\t\t\t\t\t\tWHERE id = $1\n\t\t\t\t\t\t",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad43a73647d7f74c7081761a4968fba9910383d9e83450a155dbbef0348c6a04"
+}
