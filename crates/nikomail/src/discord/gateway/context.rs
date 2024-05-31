@@ -226,24 +226,26 @@ impl Context {
 			},
 			Event::ReactionAdd(event_data) => {
 				if event_data.user_id.get() != DISCORD_APP_ID.get() {
-					let reaction = match &event_data.emoji {
-						ReactionType::Custom { animated: _, id, name } =>
-							RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
-						ReactionType::Unicode { name } =>
-							RequestReactionType::Unicode { name }
-					};
+					if let Some(copied_message_id) = STATE.get().unwrap().copied_message_source(event_data.message_id) {
+						let reaction = match &event_data.emoji {
+							ReactionType::Custom { animated: _, id, name } =>
+								RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
+							ReactionType::Unicode { name } =>
+								RequestReactionType::Unicode { name }
+						};
 
-					if event_data.guild_id.is_some() {
-						if let Some(topic) = CACHE.nikomail.topic(event_data.channel_id).await?.value() {
-							let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
-							DISCORD_CLIENT.create_reaction(*private_channel_id, *STATE.get().unwrap().copied_message_source(event_data.message_id).unwrap(), &reaction)
-								.await?;
-						}
-					} else {
-						let user_state = STATE.get().unwrap().user_state(event_data.user_id);
-						if let Some(current_topic_id) = user_state.current_topic_id {
-							DISCORD_CLIENT.create_reaction(current_topic_id, *STATE.get().unwrap().copied_message_source(event_data.message_id).unwrap(), &reaction)
-								.await?;
+						if event_data.guild_id.is_some() {
+							if let Some(topic) = CACHE.nikomail.topic(event_data.channel_id).await?.value() {
+								let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
+								DISCORD_CLIENT.create_reaction(*private_channel_id, *copied_message_id, &reaction)
+									.await?;
+							}
+						} else {
+							let user_state = STATE.get().unwrap().user_state(event_data.user_id);
+							if let Some(current_topic_id) = user_state.current_topic_id {
+								DISCORD_CLIENT.create_reaction(current_topic_id, *copied_message_id, &reaction)
+									.await?;
+							}
 						}
 					}
 				}
@@ -286,8 +288,8 @@ pub async fn copy_message_and_send(message: MessageCreate, channel_id: Id<Channe
 		let mut builder = DISCORD_CLIENT.create_message(channel_id)
 			.content(&message.content)?
 			.attachments(&attachments)?;
-		if let Some(referenced_message) = &message.referenced_message {
-			builder = builder.reply(*state.copied_message_source(referenced_message.id).unwrap());
+		if let Some(referenced_message) = &message.referenced_message && let Some(copied_message_id) = state.copied_message_source(referenced_message.id) {
+			builder = builder.reply(*copied_message_id);
 		}
 
 		let new_message = builder
