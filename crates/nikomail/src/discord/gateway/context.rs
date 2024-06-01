@@ -186,7 +186,7 @@ impl Context {
 							{
 								let state = STATE.get().unwrap();
 								let message = response.model().await?;
-								state.copied_message_sources.insert((new_thread.channel.id, new_thread.message.id), (message.channel_id, message.id));
+								state.copied_message_sources.insert((new_thread.channel.id, new_thread.message.id), (message.channel_id, message.id, true));
 
 								state.user_state_mut(author_id).current_topic_id.replace(new_thread.channel.id);
 								DISCORD_INTERACTION_CLIENT.create_response(event_data.id, &event_data.token, &InteractionResponse {
@@ -296,16 +296,18 @@ impl Context {
 			Event::ReactionAdd(event_data) => {
 				if event_data.user_id.get() != DISCORD_APP_ID.get() {
 					if let Some(copied_message_source) = STATE.get().unwrap().copied_message_source(event_data.channel_id, event_data.message_id) {
-						let reaction = match &event_data.emoji {
-							ReactionType::Custom { animated: _, id, name } =>
-								RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
-							ReactionType::Unicode { name } =>
-								RequestReactionType::Unicode { name }
-						};
+						let (copied_message_channel_id, copied_message_id, is_thread_starter) = *copied_message_source;
+						if !is_thread_starter {
+							let reaction = match &event_data.emoji {
+								ReactionType::Custom { animated: _, id, name } =>
+									RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
+								ReactionType::Unicode { name } =>
+									RequestReactionType::Unicode { name }
+							};
 
-						let (copied_message_channel_id, copied_message_id) = *copied_message_source;
-						DISCORD_CLIENT.create_reaction(copied_message_channel_id, copied_message_id, &reaction)
-							.await?;
+							DISCORD_CLIENT.create_reaction(copied_message_channel_id, copied_message_id, &reaction)
+								.await?;
+						}
 					}
 				}
 			},
@@ -363,7 +365,7 @@ pub async fn copy_message_and_send(message: MessageCreate, channel_id: Id<Channe
 			.model()
 			.await?;
 
-		state.copied_message_sources.insert((channel_id, new_message.id), (message.channel_id, message.id));
+		state.copied_message_sources.insert((channel_id, new_message.id), (message.channel_id, message.id, false));
 		if has_attachments {
 			DISCORD_CLIENT.delete_current_user_reaction(message.channel_id, message.id, &RequestReactionType::Unicode { name: "⏳" })
 				.await?;

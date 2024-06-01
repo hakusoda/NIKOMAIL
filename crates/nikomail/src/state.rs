@@ -8,7 +8,7 @@ use twilight_model::id::{
 #[derive(Debug, Default)]
 pub struct State {
 	pub user_states: DashMap<Id<UserMarker>, UserState>,
-	pub copied_message_sources: DashMap<(Id<ChannelMarker>, Id<MessageMarker>), (Id<ChannelMarker>, Id<MessageMarker>)>
+	pub copied_message_sources: DashMap<(Id<ChannelMarker>, Id<MessageMarker>), (Id<ChannelMarker>, Id<MessageMarker>, bool)>
 }
 
 impl State {
@@ -29,7 +29,7 @@ impl State {
 		}
 	}
 
-	pub fn copied_message_source(&self, channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> Option<Ref<'_, (Id<ChannelMarker>, Id<MessageMarker>), (Id<ChannelMarker>, Id<MessageMarker>)>> {
+	pub fn copied_message_source(&self, channel_id: Id<ChannelMarker>, message_id: Id<MessageMarker>) -> Option<Ref<'_, (Id<ChannelMarker>, Id<MessageMarker>), (Id<ChannelMarker>, Id<MessageMarker>, bool)>> {
 		self.copied_message_sources.get(&(channel_id, message_id))
 	}
 }
