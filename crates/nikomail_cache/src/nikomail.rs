@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use dashmap::{
-	mapref::one::Ref,
+	mapref::one::{ Ref, RefMut },
 	DashMap
 };
 use futures::stream::TryStreamExt;
@@ -30,11 +30,14 @@ impl NikomailCache {
 	}
 
 	pub async fn server(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, ServerModel>> {
-		Ok(match self.servers.get(&guild_id) {
+		self.server_mut(guild_id).await.map(|x| x.downgrade())
+	}
+
+	pub async fn server_mut(&self, guild_id: Id<GuildMarker>) -> Result<RefMut<Id<GuildMarker>, ServerModel>> {
+		Ok(match self.servers.get_mut(&guild_id) {
 			Some(model) => model,
 			None => self.servers.entry(guild_id)
 				.insert(ServerModel::get(guild_id).await?.unwrap_or_else(|| ServerModel::from(guild_id)))
-				.downgrade()
 		})
 	}
 

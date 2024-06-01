@@ -8,5 +8,6 @@ pub mod guild;
 
 pub static COMMANDS: Lazy<Vec<Command>> = Lazy::new(|| vec![
 	dm::set_topic(),
-	guild::create_button()
+	guild::create_button(),
+	guild::blacklist_topic_author()
 ]);
