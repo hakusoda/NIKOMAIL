@@ -12,7 +12,16 @@ pub struct State {
 }
 
 impl State {
-	pub fn user_state(&self, user_id: Id<UserMarker>) -> RefMut<Id<UserMarker>, UserState> {
+	pub fn user_state(&self, user_id: Id<UserMarker>) -> Ref<'_, Id<UserMarker>, UserState> {
+		match self.user_states.get(&user_id) {
+			Some(model) => model,
+			None => self.user_states.entry(user_id)
+				.insert(UserState::default())
+				.downgrade()
+		}
+	}
+
+	pub fn user_state_mut(&self, user_id: Id<UserMarker>) -> RefMut<Id<UserMarker>, UserState> {
 		match self.user_states.get_mut(&user_id) {
 			Some(model) => model,
 			None => self.user_states.entry(user_id)

@@ -154,7 +154,7 @@ impl Context {
 								let message = response.model().await?;
 								state.copied_message_sources.insert(new_thread.message.id, message.id);
 
-								state.user_state(author_id).current_topic_id.replace(new_thread.channel.id);
+								state.user_state_mut(author_id).current_topic_id.replace(new_thread.channel.id);
 								DISCORD_INTERACTION_CLIENT.create_response(event_data.id, &event_data.token, &InteractionResponse {
 									kind: InteractionResponseType::ChannelMessageWithSource,
 									data: Some(InteractionResponseData {
@@ -182,31 +182,34 @@ impl Context {
 			},
 			Event::MessageCreate(event_data) => {
 				if !event_data.author.bot {
-					if event_data.guild_id.is_some() {
-						let channel = CACHE.discord.channel(event_data.channel_id).await?;
-						if channel.kind.is_thread() && let Some(topic) = CACHE.nikomail.topic(channel.id).await?.value() {
-							let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
-							copy_message_and_send(*event_data, *private_channel_id.value())
-								.await?;
-						}
-					} else {
-						let user_state = STATE.get().unwrap().user_state(event_data.author.id);
-						if let Some(current_topic_id) = user_state.current_topic_id {
-							copy_message_and_send(*event_data, current_topic_id)
-								.await?;
+					tokio::spawn(async move {
+						if event_data.guild_id.is_some() {
+							let channel = CACHE.discord.channel(event_data.channel_id).await?;
+							if channel.kind.is_thread() && let Some(topic) = CACHE.nikomail.topic(channel.id).await?.value() {
+								let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
+								copy_message_and_send(*event_data, *private_channel_id.value())
+									.await?;
+							}
 						} else {
-							DISCORD_CLIENT.create_message(event_data.channel_id)
-								.content("you gotta set a topic first using </set_topic:1245261841974820915>")?
-								.reply(event_data.id)
-								.await?;
+							let user_state = STATE.get().unwrap().user_state(event_data.author.id);
+							if let Some(current_topic_id) = user_state.current_topic_id {
+								copy_message_and_send(*event_data, current_topic_id)
+									.await?;
+							} else {
+								DISCORD_CLIENT.create_message(event_data.channel_id)
+									.content("you gotta set a topic first using </set_topic:1245261841974820915>")?
+									.reply(event_data.id)
+									.await?;
+							}
 						}
-					}
+						Ok::<(), crate::error::Error>(())
+					});
 				}
 			},
 			Event::ThreadDelete(event_data) => {
 				if let Some((_,Some(topic))) = CACHE.nikomail.topics.remove(&event_data.id) {
 					let author_id = topic.author_id;
-					STATE.get().unwrap().user_state(author_id).current_topic_id = None;
+					STATE.get().unwrap().user_state_mut(author_id).current_topic_id = None;
 
 					sqlx::query!(
 						"

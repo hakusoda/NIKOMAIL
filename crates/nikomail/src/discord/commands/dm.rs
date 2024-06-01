@@ -37,7 +37,7 @@ pub async fn set_topic(
 	if let Ok(int) = topic.parse::<u64>() {
 		if let Some(topic_id) = Id::new_checked(int) {
 			if CACHE.nikomail.topic(topic_id).await?.is_some() {
-				let mut user_state = STATE.get().unwrap().user_state(interaction.user_id.unwrap());
+				let mut user_state = STATE.get().unwrap().user_state_mut(interaction.user_id.unwrap());
 				user_state.current_topic_id.replace(topic_id);
 
 				return Ok(CommandResponse::ephemeral("success, start talking!"));
