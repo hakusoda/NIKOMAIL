@@ -4,6 +4,7 @@ use dashmap::{
 	DashMap
 };
 use futures::stream::TryStreamExt;
+use nikomail_util::PG_POOL;
 use twilight_model::id::{
 	marker::{ UserMarker, GuildMarker, ChannelMarker },
 	Id
@@ -20,17 +21,20 @@ pub struct NikomailCache {
 }
 
 impl NikomailCache {
-	pub async fn topic(&self, channel_id: Id<ChannelMarker>) -> Result<Ref<'_, Id<ChannelMarker>, Option<TopicModel>>> {
-		Ok(match self.topics.get(&channel_id) {
+	pub async fn topic(&self, thread_id: Id<ChannelMarker>) -> Result<Ref<'_, Id<ChannelMarker>, Option<TopicModel>>> {
+		self.topic_mut(thread_id).await.map(RefMut::downgrade)
+	}
+
+	pub async fn topic_mut(&self, thread_id: Id<ChannelMarker>) -> Result<RefMut<Id<ChannelMarker>, Option<TopicModel>>> {
+		Ok(match self.topics.get_mut(&thread_id) {
 			Some(model) => model,
-			None => self.topics.entry(channel_id)
-				.insert(TopicModel::get(channel_id).await?)
-				.downgrade()
+			None => self.topics.entry(thread_id)
+				.insert(TopicModel::get(thread_id).await?)
 		})
 	}
 
 	pub async fn server(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, ServerModel>> {
-		self.server_mut(guild_id).await.map(|x| x.downgrade())
+		self.server_mut(guild_id).await.map(RefMut::downgrade)
 	}
 
 	pub async fn server_mut(&self, guild_id: Id<GuildMarker>) -> Result<RefMut<Id<GuildMarker>, ServerModel>> {
@@ -53,7 +57,7 @@ impl NikomailCache {
 					",
 					user_id.get() as i64
 				)
-					.fetch(nikomail_util::PG_POOL.get().unwrap())
+					.fetch(&*std::pin::Pin::static_ref(&PG_POOL).await)
 					.try_fold(HashSet::new(), |mut acc, m| {
 						acc.insert(Id::new(m.id as u64));
 						async move { Ok(acc) }
@@ -62,5 +66,17 @@ impl NikomailCache {
 				)
 				.downgrade()
 		})
+	}
+
+	pub fn add_user_topic(&self, user_id: Id<UserMarker>, thread_id: Id<ChannelMarker>) {
+		if let Some(mut user_topics) = self.user_topics.get_mut(&user_id) {
+			user_topics.insert(thread_id);
+		}
+	}
+
+	pub fn remove_user_topic(&self, user_id: Id<UserMarker>, thread_id: Id<ChannelMarker>) {
+		if let Some(mut user_topics) = self.user_topics.get_mut(&user_id) {
+			user_topics.remove(&thread_id);
+		}
 	}
 }

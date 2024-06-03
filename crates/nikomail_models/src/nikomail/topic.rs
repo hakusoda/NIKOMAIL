@@ -22,7 +22,7 @@ impl TopicModel {
 			",
 			channel_id.get() as i64
 		)
-			.fetch_optional(PG_POOL.get().unwrap())
+			.fetch_optional(&*std::pin::Pin::static_ref(&PG_POOL).await)
 			.await?
 			.map(|record| Self {
 				id: Id::new(record.id as u64),

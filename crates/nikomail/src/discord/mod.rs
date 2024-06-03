@@ -1,14 +1,24 @@
-use once_cell::sync::Lazy;
-use twilight_http::{ client::InteractionClient, Client };
-use twilight_model::id::{
-	marker::ApplicationMarker,
-	Id
+use std::pin::Pin;
+use nikomail_util::DISCORD_INTERACTION_CLIENT;
+use twilight_model::{
+	id::{ marker::CommandMarker, Id },
+	application::command::Command
 };
+use async_once_cell::Lazy;
 
 pub mod gateway;
 pub mod commands;
 pub mod interactions;
 
-pub static APP_ID: Lazy<Id<ApplicationMarker>> = Lazy::new(|| Id::new(env!("DISCORD_APP_ID").parse().unwrap()));
-pub static CLIENT: Lazy<Client> = Lazy::new(|| Client::new(env!("DISCORD_BOT_TOKEN").into()));
-pub static INTERACTION: Lazy<InteractionClient> = Lazy::new(|| CLIENT.interaction(*APP_ID));
+pub type CommandsFuture = impl Future<Output = Vec<Command>>;
+pub static DISCORD_APP_COMMANDS: Lazy<Vec<Command>, CommandsFuture> = Lazy::new(async {
+	DISCORD_INTERACTION_CLIENT.global_commands().await.unwrap().model().await.unwrap()
+});
+
+pub async fn app_command_id(name: &str) -> Option<Id<CommandMarker>> {
+	Pin::static_ref(&DISCORD_APP_COMMANDS)
+		.await
+		.iter()
+		.find(|x| x.name == name)
+		.and_then(|x| x.id)
+}

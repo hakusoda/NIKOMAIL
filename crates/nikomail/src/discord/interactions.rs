@@ -1,6 +1,7 @@
 use serde::{ Serialize, Deserialize };
 use chrono::{ Utc, DateTime };
 use serde_repr::*;
+use nikomail_util::DISCORD_INTERACTION_CLIENT;
 use twilight_model::{
 	id::{
 		marker::{ UserMarker, GuildMarker, ApplicationMarker, InteractionMarker },
@@ -15,10 +16,7 @@ use twilight_model::{
 	}
 };
 
-use crate::{
-	discord::INTERACTION,
-	Result, Context, CommandResponse
-};
+use crate::{ Result, Context, CommandResponse };
 use super::commands::COMMANDS;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -187,7 +185,8 @@ pub async fn handle_interaction(context: Context, interaction: TwilightInteracti
 	};
 
 	let response = parse_interaction(context, interaction).await?;
-	INTERACTION.create_response(id, &token, &response).await?;
+	DISCORD_INTERACTION_CLIENT.create_response(id, &token, &response)
+		.await?;
 
 	Ok(())
 }

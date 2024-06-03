@@ -1,14 +1,9 @@
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
-use twilight_model::{
-	id::Id,
-	channel::message::{
-		component::{ Button, ActionRow, ButtonStyle, Component },
-		MessageFlags, ReactionType
-	}
-};
+use twilight_model::channel::message::MessageFlags;
 use nikomail_macros::command;
 
 use crate::{
+	util::create_topic_button,
 	CACHE,
 	Result, Context, Interaction, CommandResponse
 };
@@ -19,20 +14,7 @@ pub async fn create_button(_context: Context, _interaction: Interaction) -> Resu
 	Ok(CommandResponse::Message {
 		flags: None,
 		content: Some("## <:niko_smile:1226793977232097321>  NIKOMAIL (working title)\nThis server uses an anonymous mailing system, for one-on-one conversations with server staff, without revealing anyone's identities.\n\n### ❓  How does it work?\nWhen a user creates a topic, they will be redirected to directly message me, where I will act as an anonymous relay between you and server staff.\nAttachments and links are permitted, along with emojis **in this server**, and default stickers **provided by Discord**.\n\n<:personbadge:1219233857786875925> *Keeping your identity hidden is **your** responsibility, try avoiding use of personal CDNs and the like.*\n‼️ *Duly note that staff are able to (still-anonymously) blacklist you from using NIKOMAIL when deemed necessary.*\n\nWith all that out of the way, simply tap the button below to start mailing server staff!".into()),
-		components: Some(vec![
-			Component::ActionRow(ActionRow {
-				components: vec![
-					Component::Button(Button {
-						url: None,
-						label: Some("Start new topic".into()),
-						emoji: Some(ReactionType::Custom { animated: false, id: Id::new(1219234152709095424), name: Some("dap_me_up".into()) }),
-						style: ButtonStyle::Primary,
-						disabled: false,
-						custom_id: Some("create_topic".into())
-					})
-				]
-			})
-		])
+		components: Some(vec![create_topic_button(None)])
 	})
 }
 
@@ -60,12 +42,12 @@ pub async fn blacklist_topic_author(_context: Context, interaction: Interaction)
 					user_ids.as_slice(),
 					guild_id.get() as i64
 				)
-					.execute(PG_POOL.get().unwrap())
+					.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 					.await?;
 
 				let private_channel_id = CACHE.discord.private_channel(current_topic.author_id).await?;
 				DISCORD_CLIENT.create_message(*private_channel_id)
-					.content("## You have been blacklisted in [UNTRACKED]\nunfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.")?
+					.content("## You have been blacklisted in [UNTRACKED]\nUnfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.")?
 					.await?;
 
 				"success! the author of this topic has been blacklisted from using NIKOMAIL.\n*they will still be able to talk in this topic until you delete the thread, sorry i was crunched for time on this part...*"

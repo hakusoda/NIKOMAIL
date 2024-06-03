@@ -35,6 +35,7 @@ tracing-error.workspace = true
 twilight-http.workspace = true
 twilight-util = { version = "0.15.4", features = ["builder"] }
 twilight-model.workspace = true
+async-once-cell.workspace = true
 nikomail_cache.path = "../nikomail_cache"
 nikomail_macros.path = "../nikomail_macros"
 nikomail_models.path = "../nikomail_models"

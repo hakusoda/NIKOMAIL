@@ -3,6 +3,8 @@ use quote::format_ident;
 use darling::FromMeta;
 use proc_macro::TokenStream;
 
+mod util;
+
 #[derive(Debug, Default, FromMeta)]
 #[darling(default)]
 struct CommandArgs {
@@ -99,14 +101,17 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
 			},
 			None => quote::quote! { None }
 		};
+
+		let kind = &pattern.ty;
+		let required = util::extract_type_parameter("Option", kind).is_none();
         parameters.push(CommandOption {
 			name: name.clone(),
-			kind: (*pattern.ty).clone(),
+			kind: *kind.clone(),
 			blah: quote::quote! {
 				crate::CommandOption {
 					name: #name.to_string(),
 					kind: crate::CommandOptionKind::String,
-					required: true,
+					required: #required,
 					description: None,
 					autocomplete: #autocomplete
 				}

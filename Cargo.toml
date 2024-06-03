@@ -19,6 +19,7 @@ dashmap = { version = "5.5.3", features = ["inline"] }
 thiserror = "1.0.61"
 once_cell = "1.19.0"
 tracing-error = "0.2.0"
+async-once-cell = "0.5.3"
 twilight-model = "0.15.4"
 twilight-http = { version = "0.15.4", features = ["simd-json"] }
 twilight-gateway = { version = "0.15.4", features = ["simd-json"] }

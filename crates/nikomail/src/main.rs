@@ -1,15 +1,16 @@
-#![feature(let_chains, try_blocks)]
-#![recursion_limit = "256"]
-use std::sync::Arc;
+#![feature(let_chains, try_blocks, const_async_blocks, type_alias_impl_trait)]
+use std::{
+	pin::Pin,
+	sync::Arc
+};
 use clap::Parser;
-use sqlx::PgPool;
 use serde::{ Serialize, Serializer };
 use tracing::{ Level, info };
 use futures::future::BoxFuture;
 use mimalloc::MiMalloc;
 use once_cell::sync::Lazy;
 use serde_repr::Serialize_repr;
-use nikomail_util::{ PG_POOL, DISCORD_APP_ID, DISCORD_CLIENT };
+use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
 use nikomail_cache::Cache;
 use twilight_model::{
 	id::{
@@ -25,15 +26,13 @@ use twilight_model::{
 };
 use tracing_subscriber::FmtSubscriber;
 
-pub mod error;
-pub mod state;
-pub mod discord;
+mod util;
+mod error;
+mod state;
+mod discord;
 
 use error::ErrorKind;
-use discord::{
-	interactions::Interaction,
-	INTERACTION
-};
+use discord::interactions::Interaction;
 pub use error::Result;
 
 #[global_allocator]
@@ -120,9 +119,10 @@ impl CommandResponse {
 					ErrorKind::TwilightHttpError(error) => (" while communicating with discord...", error.to_string()),
 					_ => (", not sure what exactly though!", error.to_string())
 				};
-				INTERACTION.update_response(&interaction_token)
+				DISCORD_INTERACTION_CLIENT.update_response(&interaction_token)
 					.content(Some(&format!("<:niko_look_left:1227198516590411826> something unexpected happened{text}\n```diff\n- {problem}\n--- {}```", error.context))).unwrap()
-					.await.unwrap();
+					.await
+					.unwrap();
 			}
 		});
 		Self::Defer
@@ -216,16 +216,15 @@ async fn main() {
 		).await.unwrap();
 
 		info!("successfully updated global commands");
+	} else {
+		Lazy::force(&CACHE);
+		Lazy::force(&state::STATE);
+		Lazy::force(&discord::commands::COMMANDS);
+		Lazy::force(&DISCORD_INTERACTION_CLIENT); // also evaluates DISCORD_CLIENT & DISCORD_APP_ID
+		Pin::static_ref(&discord::DISCORD_APP_COMMANDS).await;
+
+		discord::gateway::initialise().await;
 	}
-
-	PG_POOL.set(PgPool::connect(env!("DATABASE_URL"))
-		.await
-		.unwrap()
-	).unwrap();
-
-	state::STATE.set(state::State::default()).unwrap();
-
-	discord::gateway::initialise().await;
 }
 
 #[macro_export]
@@ -280,6 +279,7 @@ macro_rules! parse_command_arguments {
         ( $name:literal: $($type:tt)* )
     ),* $(,)? ) => {
         async {
+			#[allow(unused_variables)]
 			let (interaction, args) = ($interaction, $args);
             Ok::<_, $crate::error::Error>(( $(
                 $crate::parse_command_argument!( interaction, args => $name: $($type)* ),

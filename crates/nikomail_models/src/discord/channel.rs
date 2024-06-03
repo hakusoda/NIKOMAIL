@@ -4,7 +4,7 @@ use twilight_model::{
 		Id
 	},
 	channel::{ Channel, ChannelType },
-	gateway::payload::incoming::ChannelUpdate
+	gateway::payload::incoming::{ ChannelUpdate, ThreadCreate, ThreadUpdate }
 };
 
 #[derive(Eq, Clone, Debug, PartialEq)]
@@ -18,6 +18,10 @@ pub struct ChannelModel {
 impl ChannelModel {
 	pub fn update(&mut self, channel_update: &ChannelUpdate) {
 		self.name.clone_from(&channel_update.name);
+	}
+
+	pub fn update_from_thread(&mut self, thread_update: &ThreadUpdate) {
+		self.name.clone_from(&thread_update.name);
 	}
 }
 
@@ -72,6 +76,17 @@ impl From<Channel> for ChannelModel {
 			id,
 			kind,
 			name
+		}
+	}
+}
+
+impl From<ThreadCreate> for ChannelModel {
+	fn from(value: ThreadCreate) -> Self {
+		Self {
+			guild_id: value.guild_id,
+			id: value.id,
+			kind: value.kind,
+			name: value.name.clone()
 		}
 	}
 }

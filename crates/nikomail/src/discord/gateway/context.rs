@@ -25,8 +25,9 @@ use nikomail_models::nikomail::TopicModel;
 use twilight_gateway::{ Event, MessageSender };
 
 use crate::{
+	util::create_topic_button,
 	state::STATE,
-	discord::interactions::handle_interaction,
+	discord::{ interactions::handle_interaction, app_command_id },
 	Result,
 	CACHE
 };
@@ -45,9 +46,13 @@ impl Context {
 				if let Some(data) = &event_data.data {
 					if
 						let InteractionData::MessageComponent(component_data) = data &&
-						let Some(guild_id) = event_data.guild_id &&
 						let Some(author_id) = event_data.author_id() &&
-						component_data.custom_id == "create_topic"
+						let Some(guild_id) = match event_data.guild_id {
+							Some(x) => if component_data.custom_id == "create_topic" { Some(x) } else { None },
+							None => if component_data.custom_id.starts_with("create_topic_") {
+								component_data.custom_id[13..].parse::<u64>().ok().and_then(Id::new_checked)
+							} else { None }
+						}
 					{
 						let server = CACHE.nikomail.server(guild_id).await?;
 						if server.forum_channel_id.is_some() {
@@ -168,7 +173,7 @@ impl Context {
 								author_id.get() as i64,
 								guild_id.get() as i64
 							)
-								.execute(PG_POOL.get().unwrap())
+								.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 								.await?;
 
 							CACHE.nikomail.topics.insert(thread_id, Some(TopicModel {
@@ -176,19 +181,16 @@ impl Context {
 								author_id,
 								server_id: guild_id
 							}));
-							if let Some(mut user_topics) = CACHE.nikomail.user_topics.get_mut(&author_id) {
-								user_topics.insert(thread_id);
-							}
+							CACHE.nikomail.add_user_topic(author_id, thread_id);
 
 							if let Ok(response) = DISCORD_CLIENT.create_message(*private_channel_id.value())
-								.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait."))?
+								.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nSwitch topics with </set_topic:{}>, close topics with </close_topic:{}>", app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap()))?
 								.await
 							{
-								let state = STATE.get().unwrap();
 								let message = response.model().await?;
-								state.copied_message_sources.insert((new_thread.channel.id, new_thread.message.id), (message.channel_id, message.id, true));
+								STATE.copied_message_sources.insert((new_thread.channel.id, new_thread.message.id), (message.channel_id, message.id, true));
 
-								state.user_state_mut(author_id).current_topic_id.replace(new_thread.channel.id);
+								STATE.user_state_mut(author_id).current_topic_id.replace(new_thread.channel.id);
 								DISCORD_INTERACTION_CLIENT.create_response(event_data.id, &event_data.token, &InteractionResponse {
 									kind: InteractionResponseType::ChannelMessageWithSource,
 									data: Some(InteractionResponseData {
@@ -225,17 +227,16 @@ impl Context {
 									.await?;
 							}
 						} else {
-							let state = STATE.get().unwrap();
-							let topic_id = match event_data.referenced_message.as_ref().map(|x| state.copied_message_source(x.channel_id, x.id).map(|x| x.0)) {
+							let topic_id = match event_data.referenced_message.as_ref().map(|x| STATE.copied_message_source(x.channel_id, x.id).map(|x| x.0)) {
 								Some(x) => x,
-								None => state.user_state(event_data.author.id).current_topic_id
+								None => STATE.user_state(event_data.author.id).current_topic_id
 							};
 							if let Some(topic_id) = topic_id {
 								copy_message_and_send(*event_data, topic_id)
 									.await?;
 							} else {
 								DISCORD_CLIENT.create_message(event_data.channel_id)
-									.content("you gotta set a topic first using </set_topic:1245261841974820915>")?
+									.content("You must set the topic you'd like to respond to using </set_topic:1245261841974820915>")?
 									.reply(event_data.id)
 									.await?;
 							}
@@ -245,7 +246,7 @@ impl Context {
 				}
 			},
 			Event::MessageUpdate(event_data) => {
-				if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.get().unwrap().copied_message_sources
+				if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.copied_message_sources
 					.iter()
 					.find_map(|x| if x.value().1 == event_data.id { Some(*x.key()) } else { None })
 				{
@@ -257,7 +258,7 @@ impl Context {
 				}
 			},
 			Event::MessageDelete(event_data) => {
-				if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.get().unwrap().copied_message_sources
+				if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.copied_message_sources
 					.iter()
 					.find_map(|x| if x.value().1 == event_data.id { Some(*x.key()) } else { None })
 				{
@@ -272,30 +273,70 @@ impl Context {
 					}
 				}
 			},
+			Event::ThreadCreate(event_data) => {
+				CACHE.discord.channels.insert(event_data.id, (*event_data).into());
+			},
+			Event::ThreadUpdate(event_data) => {
+				let thread_id = event_data.id;
+				let mut channel = CACHE.discord.channels.get_mut(&thread_id);
+				if let Some(ref mut channel) = channel {
+					channel.update_from_thread(&event_data);
+				}
+
+				let channel_name = channel.and_then(|x| x.name.clone());
+				if event_data.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
+					if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
+						let author_id = topic.author_id;
+						CACHE.nikomail.remove_user_topic(author_id, thread_id);
+						STATE.user_state_mut(author_id).current_topic_id = None;
+
+						sqlx::query!(
+							"
+							DELETE from topics
+							WHERE id = $1
+							",
+							thread_id.get() as i64
+						)
+							.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+							.await?;
+
+						let private_channel_id = CACHE.discord.private_channel(author_id).await?;
+						DISCORD_CLIENT.create_message(*private_channel_id)
+							.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))?
+							.components(&[create_topic_button(Some(topic.server_id))])?
+							.await?;
+					}
+				}
+			},
 			Event::ThreadDelete(event_data) => {
-				if let Some((_,Some(topic))) = CACHE.nikomail.topics.remove(&event_data.id) {
+				let thread_id = event_data.id;
+				let channel = CACHE.discord.channels.remove(&thread_id);
+
+				if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 					let author_id = topic.author_id;
-					STATE.get().unwrap().user_state_mut(author_id).current_topic_id = None;
+					CACHE.nikomail.remove_user_topic(author_id, thread_id);
+					STATE.user_state_mut(author_id).current_topic_id = None;
 
 					sqlx::query!(
 						"
 						DELETE from topics
 						WHERE id = $1
 						",
-						event_data.id.get() as i64
+						thread_id.get() as i64
 					)
-						.execute(PG_POOL.get().unwrap())
+						.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 						.await?;
 
 					let private_channel_id = CACHE.discord.private_channel(author_id).await?;
 					DISCORD_CLIENT.create_message(*private_channel_id)
-						.content("## Topic has been closed\n**[UNTRACKED]** has been closed & deleted by server staff.")?
+						.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))?
+						.components(&[create_topic_button(Some(topic.server_id))])?
 						.await?;
 				}
 			},
 			Event::ReactionAdd(event_data) => {
 				if event_data.user_id.get() != DISCORD_APP_ID.get() {
-					if let Some(copied_message_source) = STATE.get().unwrap().copied_message_source(event_data.channel_id, event_data.message_id) {
+					if let Some(copied_message_source) = STATE.copied_message_source(event_data.channel_id, event_data.message_id) {
 						let (copied_message_channel_id, copied_message_id, is_thread_starter) = *copied_message_source;
 						if !is_thread_starter {
 							let reaction = match &event_data.emoji {
@@ -320,7 +361,7 @@ impl Context {
 								.await?;
 						}
 					} else {
-						let user_state = STATE.get().unwrap().user_state(event_data.user_id);
+						let user_state = STATE.user_state(event_data.user_id);
 						if let Some(current_topic_id) = user_state.current_topic_id {
 							DISCORD_CLIENT.create_typing_trigger(current_topic_id)
 								.await?;
@@ -350,13 +391,15 @@ pub async fn copy_message_and_send(message: MessageCreate, channel_id: Id<Channe
 			attachments.push(Attachment::from_bytes(attachment.filename.clone(), bytes.to_vec(), index as u64));
 		}
 
-		let state = STATE.get().unwrap();
 		let sticker_ids = message.sticker_items.iter().map(|x| x.id).collect::<Vec<Id<StickerMarker>>>();
 		let mut builder = DISCORD_CLIENT.create_message(channel_id)
 			.content(&message.content)?
 			.attachments(&attachments)?
 			.sticker_ids(sticker_ids.as_slice())?;
-		if let Some(referenced_message) = &message.referenced_message && let Some(copied_message_source) = state.copied_message_source(referenced_message.channel_id, referenced_message.id) {
+		if
+			let Some(referenced_message) = &message.referenced_message &&
+			let Some(copied_message_source) = STATE.copied_message_source(referenced_message.channel_id, referenced_message.id)
+		{
 			builder = builder.reply(copied_message_source.1);
 		}
 
@@ -365,7 +408,7 @@ pub async fn copy_message_and_send(message: MessageCreate, channel_id: Id<Channe
 			.model()
 			.await?;
 
-		state.copied_message_sources.insert((channel_id, new_message.id), (message.channel_id, message.id, false));
+		STATE.copied_message_sources.insert((channel_id, new_message.id), (message.channel_id, message.id, false));
 		if has_attachments {
 			DISCORD_CLIENT.delete_current_user_reaction(message.channel_id, message.id, &RequestReactionType::Unicode { name: "⏳" })
 				.await?;
