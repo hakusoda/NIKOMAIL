@@ -1,7 +1,6 @@
-use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
+use nikomail_util::{ PG_POOL, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
 use twilight_model::{
 	id::Id,
-	channel::message::MessageFlags,
 	application::command::{ CommandOptionChoice, CommandOptionChoiceValue }
 };
 use nikomail_macros::command;
@@ -64,35 +63,37 @@ pub async fn close_topic(
 		None => STATE.user_state(user_id).current_topic_id
 	};
 	if let Some(topic_id) = topic_id && let Some(topic) = CACHE.nikomail.topic_mut(topic_id).await?.take() {
-		let mut user_state = STATE.user_state_mut(interaction.user_id.unwrap());
-		user_state.current_topic_id = None;
+		return Ok(CommandResponse::defer(interaction.token.clone(), Box::pin(async move {
+			let mut user_state = STATE.user_state_mut(interaction.user_id.unwrap());
+			user_state.current_topic_id = None;
 
-		DISCORD_CLIENT.create_message(topic_id)
-			.content("# Topic has been closed\nThe author of this topic has closed the topic, it cannot be reopened.\nMessages past this point will not be sent, feel free to delete this thread if necessary.")?
-			.await?;
+			DISCORD_CLIENT.create_message(topic_id)
+				.content("# Topic has been closed\nThe author of this topic has closed the topic, it cannot be reopened.\nMessages past this point will not be sent, feel free to delete this thread if necessary.")?
+				.await?;
 
-		DISCORD_CLIENT.update_thread(topic_id)
-			.locked(true)
-			.archived(true)
-			.await?;
+			DISCORD_CLIENT.update_thread(topic_id)
+				.locked(true)
+				.archived(true)
+				.await?;
 
-		CACHE.nikomail.remove_user_topic(user_id, topic_id);
+			CACHE.nikomail.remove_user_topic(user_id, topic_id);
 
-		sqlx::query!(
-			"
-			DELETE from topics
-			WHERE id = $1
-			",
-			topic_id.get() as i64
-		)
-			.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
-			.await?;
+			sqlx::query!(
+				"
+				DELETE from topics
+				WHERE id = $1
+				",
+				topic_id.get() as i64
+			)
+				.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+				.await?;
 
-		return Ok(CommandResponse::Message {
-			flags: Some(MessageFlags::EPHEMERAL),
-			content: Some("The topic has been closed, it cannot be reopened, feel free to open another one!".into()),
-			components: Some(vec![create_topic_button(Some(topic.server_id))])
-		});
+			DISCORD_INTERACTION_CLIENT.update_response(&interaction.token)
+				.content(Some("The topic has been closed, it cannot be reopened, feel free to open another one!"))?
+				.components(Some(&[create_topic_button(Some(topic.server_id))]))?
+				.await?;
+			Ok(())
+		})));
 	}
 	Ok(CommandResponse::ephemeral("i couldn't find the topic you requested!"))
 }

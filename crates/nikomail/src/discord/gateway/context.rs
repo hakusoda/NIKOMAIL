@@ -26,6 +26,7 @@ use twilight_gateway::{ Event, MessageSender };
 
 use crate::{
 	util::create_topic_button,
+	error::Error,
 	state::STATE,
 	discord::{ interactions::handle_interaction, app_command_id },
 	Result,
@@ -241,7 +242,7 @@ impl Context {
 									.await?;
 							}
 						}
-						Ok::<(), crate::error::Error>(())
+						Ok::<(), Error>(())
 					});
 				}
 			},
@@ -277,14 +278,44 @@ impl Context {
 				CACHE.discord.channels.insert(event_data.id, (*event_data).into());
 			},
 			Event::ThreadUpdate(event_data) => {
-				let thread_id = event_data.id;
-				let mut channel = CACHE.discord.channels.get_mut(&thread_id);
-				if let Some(ref mut channel) = channel {
-					channel.update_from_thread(&event_data);
-				}
-
-				let channel_name = channel.and_then(|x| x.name.clone());
-				if event_data.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
+				tokio::spawn(async move {
+					let thread_id = event_data.id;
+					let mut channel = CACHE.discord.channels.get_mut(&thread_id);
+					if let Some(ref mut channel) = channel {
+						channel.update_from_thread(&event_data);
+					}
+	
+					let channel_name = channel.and_then(|x| x.name.clone());
+					if event_data.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
+						if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
+							let author_id = topic.author_id;
+							CACHE.nikomail.remove_user_topic(author_id, thread_id);
+							STATE.user_state_mut(author_id).current_topic_id = None;
+	
+							sqlx::query!(
+								"
+								DELETE from topics
+								WHERE id = $1
+								",
+								thread_id.get() as i64
+							)
+								.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+								.await?;
+	
+							let private_channel_id = CACHE.discord.private_channel(author_id).await?;
+							DISCORD_CLIENT.create_message(*private_channel_id)
+								.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))?
+								.components(&[create_topic_button(Some(topic.server_id))])?
+								.await?;
+						}
+					}
+					Ok::<(), Error>(())
+				});
+			},
+			Event::ThreadDelete(event_data) => {
+				tokio::spawn(async move {
+					let thread_id = event_data.id;
+					let channel = CACHE.discord.channels.remove(&thread_id);
 					if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 						let author_id = topic.author_id;
 						CACHE.nikomail.remove_user_topic(author_id, thread_id);
@@ -302,37 +333,12 @@ impl Context {
 
 						let private_channel_id = CACHE.discord.private_channel(author_id).await?;
 						DISCORD_CLIENT.create_message(*private_channel_id)
-							.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))?
+							.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))?
 							.components(&[create_topic_button(Some(topic.server_id))])?
 							.await?;
 					}
-				}
-			},
-			Event::ThreadDelete(event_data) => {
-				let thread_id = event_data.id;
-				let channel = CACHE.discord.channels.remove(&thread_id);
-
-				if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
-					let author_id = topic.author_id;
-					CACHE.nikomail.remove_user_topic(author_id, thread_id);
-					STATE.user_state_mut(author_id).current_topic_id = None;
-
-					sqlx::query!(
-						"
-						DELETE from topics
-						WHERE id = $1
-						",
-						thread_id.get() as i64
-					)
-						.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
-						.await?;
-
-					let private_channel_id = CACHE.discord.private_channel(author_id).await?;
-					DISCORD_CLIENT.create_message(*private_channel_id)
-						.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))?
-						.components(&[create_topic_button(Some(topic.server_id))])?
-						.await?;
-				}
+					Ok::<(), Error>(())
+				});
 			},
 			Event::ReactionAdd(event_data) => {
 				if event_data.user_id.get() != DISCORD_APP_ID.get() {
@@ -354,19 +360,22 @@ impl Context {
 			},
 			Event::TypingStart(event_data) => {
 				if event_data.user_id.get() != DISCORD_APP_ID.get() {
-					if event_data.guild_id.is_some() {
-						if let Some(topic) = CACHE.nikomail.topic(event_data.channel_id).await?.value() {
-							let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
-							DISCORD_CLIENT.create_typing_trigger(*private_channel_id)
-								.await?;
+					tokio::spawn(async move {
+						if event_data.guild_id.is_some() {
+							if let Some(topic) = CACHE.nikomail.topic(event_data.channel_id).await?.value() {
+								let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
+								DISCORD_CLIENT.create_typing_trigger(*private_channel_id)
+									.await?;
+							}
+						} else {
+							let user_state = STATE.user_state(event_data.user_id);
+							if let Some(current_topic_id) = user_state.current_topic_id {
+								DISCORD_CLIENT.create_typing_trigger(current_topic_id)
+									.await?;
+							}
 						}
-					} else {
-						let user_state = STATE.user_state(event_data.user_id);
-						if let Some(current_topic_id) = user_state.current_topic_id {
-							DISCORD_CLIENT.create_typing_trigger(current_topic_id)
-								.await?;
-						}
-					}
+						Ok::<(), Error>(())
+					});
 				}
 			},
 			_ => ()
