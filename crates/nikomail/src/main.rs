@@ -180,7 +180,7 @@ fn app_command(command: &Command, kind: CommandType) -> Result<ApplicationComman
 	})
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
 	let subscriber = FmtSubscriber::builder()
 		.with_max_level(Level::INFO)

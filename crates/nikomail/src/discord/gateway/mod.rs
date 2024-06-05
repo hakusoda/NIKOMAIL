@@ -10,6 +10,7 @@ use twilight_gateway::{ Shard, Config, Intents, ShardId };
 
 pub use context::Context;
 
+pub mod event;
 pub mod context;
 
 pub async fn initialise() {
@@ -58,16 +59,16 @@ pub async fn initialise() {
 			break;
 		}*/
 
-		let event = match shard.next_event().await {
-			Ok(event) => event,
-			Err(source) => {
-				tracing::warn!(?source, "error receiving event");
-				if source.is_fatal() {
-					break;
-				}
+		let item = shard.next_event().await;
+		let Ok(event) = item else {
+			let source = item.unwrap_err();
+			tracing::error!(?source, "error receiving event");
 
-				continue;
+			if source.is_fatal() {
+				break;
 			}
+
+			continue;
 		};
 
 		let context = Arc::clone(&context);
