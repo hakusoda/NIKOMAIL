@@ -1,7 +1,4 @@
-use std::sync::{
-	atomic::AtomicBool,
-	Arc
-};
+use std::sync::Arc;
 use twilight_model::gateway::{
 	payload::outgoing::update_presence::UpdatePresencePayload,
 	presence::{ Status, Activity, ActivityType }
@@ -48,17 +45,8 @@ pub async fn initialise() {
 		.build();
 	let mut shard = Shard::with_config(ShardId::ONE, config);
 	let context = Arc::new(Context::new(shard.sender()));
-	
-	let term = Arc::new(AtomicBool::new(false));
-    signal_hook::flag::register(signal_hook::consts::SIGINT, Arc::clone(&term)).unwrap();
 
 	loop {
-		/*if term.load(Ordering::Relaxed) {
-			tracing::info!("SIGINT received, shutting down gateway...");
-			shard.close(CloseFrame::NORMAL).await.unwrap();
-			break;
-		}*/
-
 		let item = shard.next_event().await;
 		let Ok(event) = item else {
 			let source = item.unwrap_err();
@@ -72,11 +60,6 @@ pub async fn initialise() {
 		};
 
 		let context = Arc::clone(&context);
-		tokio::spawn(async move {
-			match context.handle_event(event).await {
-				Ok(_) => (),
-				Err(source) => tracing::warn!(?source, "error handling event")
-			}
-		});
+		context.handle_event(event);
 	}
 }

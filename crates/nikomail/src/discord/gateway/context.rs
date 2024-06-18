@@ -1,7 +1,6 @@
 use twilight_gateway::{ Event, MessageSender };
 
 use super::event;
-use crate::Result;
 
 pub struct Context;
 
@@ -10,7 +9,7 @@ impl Context {
 		Self {}
 	}
 
-	pub async fn handle_event(self: crate::Context, event: Event) -> Result<()> {
+	pub fn handle_event(self: crate::Context, event: Event) {
 		let event_kind = event.kind();
 		tracing::info!("handle_event {event_kind:?}");
 		
@@ -34,6 +33,5 @@ impl Context {
 
 			tracing::debug!("handle_event {event_kind:?} <");
 		});
-		Ok(())
 	}
 }

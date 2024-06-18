@@ -7,7 +7,6 @@ use clap::Parser;
 use serde::{ Serialize, Serializer };
 use tracing::{ Level, info };
 use futures::future::BoxFuture;
-use mimalloc::MiMalloc;
 use once_cell::sync::Lazy;
 use serde_repr::Serialize_repr;
 use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
@@ -34,9 +33,6 @@ mod discord;
 use error::ErrorKind;
 use discord::interactions::Interaction;
 pub use error::Result;
-
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
 
 pub type Context = Arc<discord::gateway::Context>;
 
