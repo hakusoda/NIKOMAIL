@@ -13,16 +13,15 @@ use twilight_model::{
 	gateway::payload::incoming::InteractionCreate,
 	application::interaction::InteractionData
 };
-use nikomail_models::nikomail::TopicModel;
+use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel };
 
 use crate::{
-	state::STATE,
 	discord::{ interactions::handle_interaction, app_command_id },
-	Result, Context,
+	Result,
 	CACHE
 };
 
-pub async fn interaction_create(context: Context, interaction_create: InteractionCreate) -> Result<()> {
+pub async fn interaction_create(interaction_create: InteractionCreate) -> Result<()> {
 	if let Some(data) = &interaction_create.data {
 		if
 			let InteractionData::MessageComponent(component_data) = data &&
@@ -137,7 +136,7 @@ pub async fn interaction_create(context: Context, interaction_create: Interactio
 				)
 					.auto_archive_duration(AutoArchiveDuration::Week)
 					.message()
-					.content(topic_message)?
+					.content(topic_message)
 					.await?
 					.bytes()
 					.await?;
@@ -164,13 +163,22 @@ pub async fn interaction_create(context: Context, interaction_create: Interactio
 				CACHE.nikomail.add_user_topic(author_id, thread_id);
 
 				if let Ok(response) = DISCORD_CLIENT.create_message(*private_channel_id.value())
-					.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nSwitch topics with </set_topic:{}>, close topics with </close_topic:{}>", app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap()))?
+					.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nSwitch topics with </set_topic:{}>, close topics with </close_topic:{}>", app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap()))
 					.await
 				{
 					let message = response.model().await?;
-					STATE.copied_message_sources.insert((new_thread.channel.id, new_thread.message.id), (message.channel_id, message.id, true));
-
-					STATE.user_state_mut(author_id).current_topic_id.replace(new_thread.channel.id);
+					let relayed_message = RelayedMessageModel::insert(
+						author_id,
+						thread_id,
+						thread_id,
+						new_thread.message.id,
+						message.channel_id,
+						message.id,
+						true
+					).await?;
+					CACHE.nikomail.add_relayed_message(relayed_message);
+					CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id.replace(new_thread.channel.id);
+					
 					DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
 						kind: InteractionResponseType::ChannelMessageWithSource,
 						data: Some(InteractionResponseData {
@@ -194,5 +202,5 @@ pub async fn interaction_create(context: Context, interaction_create: Interactio
 			}
 		}
 	}
-	handle_interaction(context, interaction_create.0).await
+	handle_interaction(interaction_create.0).await
 }

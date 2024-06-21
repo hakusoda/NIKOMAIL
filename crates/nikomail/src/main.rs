@@ -1,150 +1,33 @@
 #![feature(let_chains, try_blocks, const_async_blocks, type_alias_impl_trait)]
-use std::{
-	pin::Pin,
-	sync::Arc
-};
+use std::pin::Pin;
 use clap::Parser;
-use serde::{ Serialize, Serializer };
+use serde::Serialize;
 use tracing::{ Level, info };
-use futures::future::BoxFuture;
 use once_cell::sync::Lazy;
-use serde_repr::Serialize_repr;
-use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
-use nikomail_cache::Cache;
-use twilight_model::{
-	id::{
-		marker::{ GuildMarker, ChannelMarker },
-		Id
-	},
-	guild::Permissions,
-	channel::message::{ Component, MessageFlags },
-	application::{
-		command::{ CommandType, CommandOptionChoice },
-		interaction::application_command::CommandOptionValue
-	}
+use nikomail_cache::CACHE;
+use nikomail_commands::{
+	command::{ Command, CommandContext, CommandOption },
+	commands::COMMANDS
 };
+use nikomail_models::nikomail::RelayedMessageModel;
+use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT, PG_POOL };
+use twilight_model::{
+	guild::Permissions,
+	application::command::CommandType
+};
+use twilight_gateway::CloseFrame;
 use tracing_subscriber::FmtSubscriber;
 
-mod util;
-mod error;
-mod state;
 mod discord;
+mod error;
+mod util;
 
-use error::ErrorKind;
-use discord::interactions::Interaction;
 pub use error::Result;
-
-pub type Context = Arc<discord::gateway::Context>;
-
-pub static CACHE: Lazy<Cache> = Lazy::new(Cache::default);
-
-pub struct Command {
-	name: String,
-	options: Vec<CommandOption>,
-	contexts: Vec<InteractionContextKind>,
-	handler: fn(Context, Interaction) -> BoxFuture<'static, Result<CommandResponse>>,
-	is_user: bool,
-	is_slash: bool,
-	is_message: bool,
-	description: Option<String>,
-	default_member_permissions: Option<String>
-}
-
-impl Command {
-	pub fn default_member_permissions(&self) -> Result<Option<Permissions>> {
-		Ok(if let Some(permissions) = self.default_member_permissions.as_ref() {
-			Some(Permissions::from_bits_truncate(permissions.parse()?))
-		} else { None })
-	}
-}
-
-#[derive(Clone, Serialize)]
-pub struct CommandOption {
-	name: String,
-	#[serde(rename = "type")]
-	kind: CommandOptionKind,
-	required: bool,
-	description: Option<String>,
-	#[serde(serialize_with = "serialize_option_as_bool")]
-	#[allow(clippy::type_complexity)]
-	autocomplete: Option<fn(Context, Interaction, String) -> BoxFuture<'static, Result<Vec<CommandOptionChoice>>>>
-}
-
-fn serialize_option_as_bool<T, S: Serializer>(value: &Option<T>, serialiser: S) -> core::result::Result<S::Ok, S::Error> {
-	serialiser.serialize_bool(value.is_some())
-}
-
-#[derive(Clone, Serialize_repr)]
-#[repr(u8)]
-pub enum CommandOptionKind {
-	SubCommand = 1,
-	SubCommandGroup,
-	String,
-	Integer,
-	Boolean,
-	User,
-	Channel,
-	Role,
-	Mentionable,
-	Number,
-	Attachment
-}
-
-pub enum CommandKind {
-	Slash,
-	User,
-	Message
-}
-
-pub enum CommandResponse {
-	Message {
-		flags: Option<MessageFlags>,
-		content: Option<String>,
-		components: Option<Vec<Component>>
-	},
-	Defer
-}
-
-impl CommandResponse {
-	pub fn defer(interaction_token: impl Into<String>, callback: BoxFuture<'static, Result<()>>) -> Self {
-		let interaction_token = interaction_token.into();
-		tokio::spawn(async move {
-			if let Err(error) = callback.await {
-				tracing::error!("error during interaction: {}", error);
-				let (text, problem) = match &error.kind {
-					ErrorKind::TwilightHttpError(error) => (" while communicating with discord...", error.to_string()),
-					_ => (", not sure what exactly though!", error.to_string())
-				};
-				DISCORD_INTERACTION_CLIENT.update_response(&interaction_token)
-					.content(Some(&format!("<:niko_look_left:1227198516590411826> something unexpected happened{text}\n```diff\n- {problem}\n--- {}```", error.context))).unwrap()
-					.await
-					.unwrap();
-			}
-		});
-		Self::Defer
-	}
-
-	pub fn ephemeral(content: impl Into<String>) -> Self {
-		Self::Message {
-			flags: Some(MessageFlags::EPHEMERAL),
-			content: Some(content.into()),
-			components: None
-		}
-	}
-}
 
 #[derive(Parser)]
 struct Args {
 	#[clap(long, short)]
     update_commands: bool
-}
-
-#[derive(Clone, Serialize_repr)]
-#[repr(u8)]
-enum InteractionContextKind {
-	Guild,
-	BotDM,
-	PrivateChannel
 }
 
 #[derive(Serialize)]
@@ -153,7 +36,7 @@ struct ApplicationCommand {
 	kind: CommandType,
 	name: String,
 	options: Vec<CommandOption>,
-	contexts: Vec<InteractionContextKind>,
+	contexts: Vec<CommandContext>,
 	description: String,
 	default_member_permissions: Option<Permissions>
 }
@@ -172,7 +55,7 @@ fn app_command(command: &Command, kind: CommandType) -> Result<ApplicationComman
 		}).collect(),
 		contexts: command.contexts.clone(),
 		description: description.to_string(),
-		default_member_permissions: command.default_member_permissions()?
+		default_member_permissions: command.default_member_permissions()
 	})
 }
 
@@ -190,7 +73,7 @@ async fn main() {
 	let args = Args::parse();
 	if args.update_commands {
 		let mut commands: Vec<ApplicationCommand> = vec![];
-		for command in discord::commands::COMMANDS.iter() {
+		for command in COMMANDS.iter() {
 			if command.is_user {
 				commands.push(app_command(command, CommandType::User).unwrap());
 			}
@@ -207,174 +90,49 @@ async fn main() {
 				application_id: DISCORD_APP_ID.get()
 			})
 				.json(&commands)
-				.map(twilight_http::request::RequestBuilder::build)
+				.build()
 				.unwrap()
 		).await.unwrap();
 
 		info!("successfully updated global commands");
 	} else {
 		Lazy::force(&CACHE);
-		Lazy::force(&state::STATE);
-		Lazy::force(&discord::commands::COMMANDS);
+		Lazy::force(&COMMANDS);
 		Lazy::force(&DISCORD_INTERACTION_CLIENT); // also evaluates DISCORD_CLIENT & DISCORD_APP_ID
 		Pin::static_ref(&discord::DISCORD_APP_COMMANDS).await;
 
-		discord::gateway::initialise().await;
-	}
-}
+		let relayed_messages = RelayedMessageModel::get_all().await.unwrap();
+		info!("fetched {} relayed messages", relayed_messages.len());
 
-#[macro_export]
-macro_rules! parse_command_argument {
-    // extracts #[choices(...)]
-    /*($interaction:ident, $args:ident => $name:literal: INLINE_CHOICE $type:ty [$($index:literal: $value:literal),*]) => {
-        if let Some(arg) = $args.iter().find(|arg| arg.name == $name) {
-            let $crate::serenity_prelude::ResolvedValue::Integer(index) = arg.value else {
-                return Err($crate::SlashArgError::new_command_structure_mismatch("expected integer, as the index for an inline choice parameter"));
-            };
-            match index {
-                $( $index => $value, )*
-                _ => return Err($crate::SlashArgError::new_command_structure_mismatch("out of range index for inline choice parameter")),
-            }
-        } else {
-            return Err($crate::SlashArgError::new_command_structure_mismatch("a required argument is missing"));
-        }
-    };*/
-
-    // extracts Option<T>
-    ($interaction:ident, $args:ident => $name:literal: Option<$type:ty $(,)*>) => {
-        if let Some(arg) = $args.iter().find(|arg| arg.name == $name) {
-            Some($crate::extract_command_argument!($type, $interaction, &arg.value).await?)
-        } else {
-            None
-        }
-    };
-
-    // extracts Vec<T>
-    ($interaction:ident, $args:ident => $name:literal: Vec<$type:ty $(,)*>) => {
-        match $crate::parse_command_argument!($interaction, $args => $name: Option<$type>) {
-            Some(value) => vec![value],
-            None => vec![],
-        }
-    };
-
-    // extracts #[flag]
-    ($interaction:ident, $args:ident => $name:literal: FLAG) => {
-        $crate::parse_command_argument!($interaction, $args => $name: Option<bool>)
-            .unwrap_or(false)
-    };
-
-    // exracts T
-    ($interaction:ident, $args:ident => $name:literal: $($type:tt)*) => {
-        $crate::parse_command_argument!($interaction, $args => $name: Option<$($type)*>).unwrap()
-    };
-}
-
-#[macro_export]
-macro_rules! parse_command_arguments {
-    ($interaction:expr, $args:expr => $(
-        ( $name:literal: $($type:tt)* )
-    ),* $(,)? ) => {
-        async {
-			#[allow(unused_variables)]
-			let (interaction, args) = ($interaction, $args);
-            Ok::<_, $crate::error::Error>(( $(
-                $crate::parse_command_argument!( interaction, args => $name: $($type)* ),
-            )* ))
-        }
-    };
-}
-
-#[derive(Debug)]
-pub enum SlashArgError {
-    CommandStructureMismatch {
-        description: &'static str
-    },
-    Parse {
-        error: Box<dyn std::error::Error + Send + Sync>,
-        input: String
-    },
-    Invalid(&'static str),
-    __NonExhaustive
-}
-
-impl SlashArgError {
-    pub fn new_command_structure_mismatch(description: &'static str) -> Self {
-        Self::CommandStructureMismatch { description }
-    }
-}
-
-impl std::fmt::Display for SlashArgError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			Self::CommandStructureMismatch { description } => {
-				write!(
-					f,
-					"Bot author did not register their commands correctly ({description})",
-				)
-			}
-			Self::Parse { error, input } => {
-				write!(f, "Failed to parse `{input}` as argument: {error}")
-			}
-			Self::Invalid(description) => {
-				write!(f, "You can't use this parameter here: {description}",)
-			}
-			Self::__NonExhaustive => unreachable!(),
+		for relayed_message in relayed_messages {
+			CACHE.nikomail.add_relayed_message(relayed_message);
 		}
-	}
-}
-impl std::error::Error for SlashArgError {
-	fn cause(&self) -> Option<&dyn std::error::Error> {
-		match self {
-			Self::Parse { error, input: _ } => Some(&**error),
-			Self::Invalid { .. } | Self::CommandStructureMismatch { .. } => None,
-			Self::__NonExhaustive => unreachable!(),
+
+		let message_sender = discord::gateway::initialise();
+		tokio::signal::ctrl_c().await.unwrap();
+
+		info!("shutdown signal received, saving stuff...");
+		
+		message_sender.close(CloseFrame::NORMAL).unwrap();
+
+		let mut transaction = Pin::static_ref(&PG_POOL).await.begin().await.unwrap();
+		for user_state in CACHE.nikomail.user_states.iter() {
+			sqlx::query!(
+				"
+				INSERT INTO user_states
+				VALUES ($1, $2)
+				ON CONFLICT (id)
+				DO UPDATE SET current_topic_id = $2
+				",
+				user_state.id.get() as i64,
+				user_state.current_topic_id.map(|x| x.get() as i64)
+			)
+				.execute(&mut *transaction)
+				.await
+				.unwrap();
 		}
+
+		transaction.commit().await.unwrap();
+		info!("saved {} user states, now shutting down...", CACHE.nikomail.user_states.len());
 	}
-}
-
-#[async_trait::async_trait]
-pub trait CommandArgumentExtractor<T>: Sized {
-	async fn extract(
-		self,
-		interaction: &Interaction,
-		value: &CommandOptionValue
-	) -> Result<T>;
-}
-
-#[async_trait::async_trait]
-impl<T: ArgumentConvert + Send + Sync> CommandArgumentExtractor<T> for std::marker::PhantomData<T> {
-	async fn extract(
-		self,
-		interaction: &Interaction,
-		value: &CommandOptionValue
-	) -> Result<T> {
-		T::convert(
-			interaction.guild_id,
-			interaction.channel.as_ref().map(|x| x.id),
-			value
-		).await
-	}
-}
-
-#[async_trait::async_trait]
-trait ArgumentConvert: Sized {
-	async fn convert(guild_id: Option<Id<GuildMarker>>, channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self>;
-}
-
-#[async_trait::async_trait]
-impl ArgumentConvert for String {
-	async fn convert(_guild_id: Option<Id<GuildMarker>>, _channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self> {
-		match value {
-			CommandOptionValue::String(x) => Ok(x.clone()),
-			_ => Err(error::ErrorKind::Unknown.into())
-		}
-	}
-}
-
-#[macro_export]
-macro_rules! extract_command_argument {
-	($target:ty, $interaction:expr, $value:expr) => {{
-		use $crate::CommandArgumentExtractor as _;
-		(&&std::marker::PhantomData::<$target>).extract(&$interaction, $value)
-	}};
 }

@@ -1,5 +1,7 @@
-use tokio::time::{ Duration, sleep };
+use nikomail_cache::CACHE;
+use nikomail_models::nikomail::RelayedMessageModel;
 use nikomail_util::DISCORD_CLIENT;
+use tokio::time::{ Duration, sleep };
 use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::{
 	id::{
@@ -10,7 +12,7 @@ use twilight_model::{
 	gateway::payload::incoming::{ MessageCreate, MessageUpdate, MessageDelete }
 };
 
-use crate::{ state::STATE, Result, CACHE };
+use crate::Result;
 
 pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 	if !message_create.author.bot {
@@ -18,20 +20,27 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 			let channel = CACHE.discord.channel(message_create.channel_id).await?;
 			if channel.kind.is_thread() && let Some(topic) = CACHE.nikomail.topic(channel.id).await?.value() {
 				let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
-				copy_message_and_send(message_create, *private_channel_id.value())
+				copy_message_and_send(message_create, *private_channel_id.value(), channel.id)
 					.await?;
 			}
 		} else {
-			let topic_id = match message_create.referenced_message.as_ref().map(|x| STATE.copied_message_source(x.channel_id, x.id).map(|x| x.0)) {
-				Some(x) => x,
-				None => STATE.user_state(message_create.author.id).current_topic_id
+			let related_topic_id = match &message_create.referenced_message {
+				Some(message) => match CACHE.nikomail.relayed_message_by_ref(message.id).await? {
+					Some(x) => x.as_ref().map(|x| x.topic_id),
+					None => None
+				},
+				None => None
+			};
+			let topic_id = match related_topic_id {
+				Some(x) => Some(x),
+				None => CACHE.nikomail.user_state(message_create.author.id).await?.current_topic_id
 			};
 			if let Some(topic_id) = topic_id {
-				copy_message_and_send(message_create, topic_id)
+				copy_message_and_send(message_create, topic_id, topic_id)
 					.await?;
 			} else {
 				DISCORD_CLIENT.create_message(message_create.channel_id)
-					.content("You must set the topic you'd like to respond to using </set_topic:1245261841974820915>")?
+					.content("You must set the topic you'd like to respond to using </set_topic:1245261841974820915>")
 					.reply(message_create.id)
 					.await?;
 			}
@@ -41,13 +50,14 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 }
 
 pub async fn message_update(message_update: MessageUpdate) -> Result<()> {
-	if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.copied_message_sources
-		.iter()
-		.find_map(|x| if x.value().1 == message_update.id { Some(*x.key()) } else { None })
+	if
+		let Some(relayed_message_ref) = CACHE.nikomail.relayed_message_by_ref(message_update.id).await? &&
+		let Some(relayed_message) = relayed_message_ref.value()
 	{
-		let builder = DISCORD_CLIENT.update_message(proxy_message_channel_id, proxy_message_id)
-			.embeds(message_update.embeds.as_deref())?
-			.content(message_update.content.as_deref())?;
+		let (channel_id, message_id) = relayed_message.message_other_ids(message_update.id);
+		let builder = DISCORD_CLIENT.update_message(channel_id, message_id)
+			.embeds(message_update.embeds.as_deref())
+			.content(message_update.content.as_deref());
 
 		builder.await?;
 	}
@@ -55,24 +65,25 @@ pub async fn message_update(message_update: MessageUpdate) -> Result<()> {
 }
 
 pub async fn message_delete(message_delete: MessageDelete) -> Result<()> {
-	if let Some((proxy_message_channel_id, proxy_message_id)) = STATE.copied_message_sources
-		.iter()
-		.find_map(|x| if x.value().1 == message_delete.id { Some(*x.key()) } else { None })
+	if
+		let Some(relayed_message_ref) = CACHE.nikomail.relayed_message_by_ref(message_delete.id).await? &&
+		let Some(relayed_message) = relayed_message_ref.value()
 	{
+		let (channel_id, message_id) = relayed_message.message_other_ids(message_delete.id);
 		if message_delete.guild_id.is_some() {
-			DISCORD_CLIENT.delete_message(proxy_message_channel_id, proxy_message_id)
+			DISCORD_CLIENT.delete_message(channel_id, message_id)
 				.await?;
 		} else {
-			DISCORD_CLIENT.create_message(proxy_message_channel_id)
-				.content("This message was deleted on the author's end.")?
-				.reply(proxy_message_id)
+			DISCORD_CLIENT.create_message(channel_id)
+				.content("This message was deleted on the author's end.")
+				.reply(message_id)
 				.await?;
 		}
 	}
 	Ok(())
 }
 
-async fn copy_message_and_send(message: MessageCreate, channel_id: Id<ChannelMarker>) -> Result<()> {
+async fn copy_message_and_send(message: MessageCreate, channel_id: Id<ChannelMarker>, topic_id: Id<ChannelMarker>) -> Result<()> {
 	let result: Result<()> = try {
 		let has_attachments = !message.attachments.is_empty();
 		if has_attachments {
@@ -90,14 +101,15 @@ async fn copy_message_and_send(message: MessageCreate, channel_id: Id<ChannelMar
 
 		let sticker_ids = message.sticker_items.iter().map(|x| x.id).collect::<Vec<Id<StickerMarker>>>();
 		let mut builder = DISCORD_CLIENT.create_message(channel_id)
-			.content(&message.content)?
-			.attachments(&attachments)?
-			.sticker_ids(sticker_ids.as_slice())?;
+			.content(&message.content)
+			.attachments(&attachments)
+			.sticker_ids(sticker_ids.as_slice());
 		if
 			let Some(referenced_message) = &message.referenced_message &&
-			let Some(copied_message_source) = STATE.copied_message_source(referenced_message.channel_id, referenced_message.id)
+			let Some(relayed_message_ref) = CACHE.nikomail.relayed_message_by_ref(referenced_message.id).await? &&
+			let Some(relayed_message) = relayed_message_ref.value()
 		{
-			builder = builder.reply(copied_message_source.1);
+			builder = builder.reply(relayed_message.other_message_id(referenced_message.id));
 		}
 
 		let new_message = builder
@@ -105,7 +117,17 @@ async fn copy_message_and_send(message: MessageCreate, channel_id: Id<ChannelMar
 			.model()
 			.await?;
 
-		STATE.copied_message_sources.insert((channel_id, new_message.id), (message.channel_id, message.id, false));
+		let relayed_message = RelayedMessageModel::insert(
+			message.author.id,
+			topic_id,
+			message.channel_id,
+			message.id,
+			channel_id,
+			new_message.id,
+			false
+		).await?;
+		CACHE.nikomail.add_relayed_message(relayed_message);
+		
 		if has_attachments {
 			DISCORD_CLIENT.delete_current_user_reaction(message.channel_id, message.id, &RequestReactionType::Unicode { name: "⏳" })
 				.await?;
@@ -127,7 +149,7 @@ async fn copy_message_and_send(message: MessageCreate, channel_id: Id<ChannelMar
 		Err(error) => {
 			println!("{error}");
 			DISCORD_CLIENT.create_message(message.channel_id)
-				.content("oh dear, something went wrong while transmitting this message...")?
+				.content("oh dear, something went wrong while transmitting this message...")
 				.reply(message.id)
 				.await?;
 			Err(error)

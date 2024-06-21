@@ -15,7 +15,7 @@ struct CommandArgs {
 	#[darling(rename = "context", multiple)]
 	contexts: Vec<String>,
 	description: Option<String>,
-	default_member_permissions: Option<String>
+	default_member_permissions: Option<u64>
 }
 
 #[derive(Default, Debug, darling::FromMeta)]
@@ -34,6 +34,13 @@ struct CommandOption {
 fn wrap_option_to_string<T: quote::ToTokens>(literal: Option<T>) -> syn::Expr {
     match literal {
         Some(literal) => syn::parse_quote! { Some(#literal.to_string()) },
+        None => syn::parse_quote! { None },
+    }
+}
+
+fn wrap_option<T: quote::ToTokens>(literal: Option<T>) -> syn::Expr {
+    match literal {
+        Some(literal) => syn::parse_quote! { Some(#literal) },
         None => syn::parse_quote! { None },
     }
 }
@@ -57,19 +64,19 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
     let function_visibility = &function.vis;
 
 	let contexts: Vec<syn::Expr> = args.contexts.into_iter().map(|x| match x.as_str() {
-		"guild" => syn::parse_quote! { crate::InteractionContextKind::Guild },
-		"bot_dm" => syn::parse_quote! { crate::InteractionContextKind::BotDM },
-		"private_channel" => syn::parse_quote! { crate::InteractionContextKind::PrivateChannel },
+		"guild" => syn::parse_quote! { crate::command::CommandContext::Guild },
+		"bot_dm" => syn::parse_quote! { crate::command::CommandContext::BotDM },
+		"private_channel" => syn::parse_quote! { crate::command::CommandContext::PrivateChannel },
 		_ => panic!("invalid context, must specify either guild, bot_dm, or private_channel")
 	}).collect();
 	let is_user = args.user;
 	let is_slash = args.slash;
 	let is_message = args.message;
 	let description = wrap_option_to_string(args.description);
-	let default_member_permissions = wrap_option_to_string(args.default_member_permissions);
+	let default_member_permissions = wrap_option(args.default_member_permissions);
 
 	let mut parameters: Vec<CommandOption> = vec![];
-    for command_param in function.sig.inputs.iter_mut().skip(2) {
+    for command_param in function.sig.inputs.iter_mut().skip(1) {
        	let pattern = match command_param {
             syn::FnArg::Typed(x) => x,
             syn::FnArg::Receiver(r) => {
@@ -95,8 +102,8 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
 
 		let autocomplete = match attrs.autocomplete {
 			Some(autocomplete_fn) => quote::quote! {
-				Some(|ctx, interaction, partial| Box::pin(async move {
-					#autocomplete_fn(ctx, interaction, partial).await
+				Some(|interaction, partial| Box::pin(async move {
+					#autocomplete_fn(interaction, partial).await
 				}))
 			},
 			None => quote::quote! { None }
@@ -108,9 +115,9 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
 			name: name.clone(),
 			kind: *kind.clone(),
 			blah: quote::quote! {
-				crate::CommandOption {
+				crate::command::CommandOption {
 					name: #name.to_string(),
-					kind: crate::CommandOptionKind::String,
+					kind: crate::command::CommandOptionKind::String,
 					required: #required,
 					description: None,
 					autocomplete: #autocomplete
@@ -142,13 +149,13 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
         .collect::<Vec<_>>();
 
 	let handler = quote::quote! {
-		|context, interaction| Box::pin(async move {
+		|interaction| Box::pin(async move {
 			let ( #( #param_identifiers, )* ) = crate::parse_command_arguments!(
                 &interaction, interaction.options() =>
                 #( (#param_names: #param_types), )*
             ).await?;
 
-			inner(context, interaction, #( #param_identifiers, )*).await
+			inner(interaction, #( #param_identifiers, )*).await
 		})
 	};
 
@@ -158,9 +165,9 @@ fn create_command(args: TokenStream, mut function: syn::ItemFn) -> Result<TokenS
 	};
 	let options: Vec<proc_macro2::TokenStream> = parameters.into_iter().map(|x| x.blah).collect();
 	Ok(TokenStream::from(quote::quote! {
-		#function_visibility fn #function_ident #function_generics() -> crate::Command {
+		#function_visibility fn #function_ident #function_generics() -> crate::command::Command {
             #function
-			crate::Command {
+			crate::command::Command {
 				name: #name.to_string(),
 				options: vec![ #( #options ),* ],
 				contexts: vec![ #( #contexts ),* ],

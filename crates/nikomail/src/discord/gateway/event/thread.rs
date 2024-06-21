@@ -1,11 +1,10 @@
+use nikomail_cache::CACHE;
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
 use twilight_model::gateway::payload::incoming::{ ThreadCreate, ThreadUpdate, ThreadDelete };
 
 use crate::{
 	util::create_topic_button,
-	state::STATE,
-	Result,
-	CACHE
+	Result
 };
 
 pub fn thread_create(thread_create: ThreadCreate) -> Result<()> {
@@ -25,7 +24,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 		if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 			let author_id = topic.author_id;
 			CACHE.nikomail.remove_user_topic(author_id, thread_id);
-			STATE.user_state_mut(author_id).current_topic_id = None;
+			CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id = None;
 
 			sqlx::query!(
 				"
@@ -39,8 +38,8 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 
 			let private_channel_id = CACHE.discord.private_channel(author_id).await?;
 			DISCORD_CLIENT.create_message(*private_channel_id)
-				.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))?
-				.components(&[create_topic_button(Some(topic.server_id))])?
+				.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))
+				.components(&[create_topic_button(Some(topic.server_id))])
 				.await?;
 		}
 	}
@@ -54,7 +53,7 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 	if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 		let author_id = topic.author_id;
 		CACHE.nikomail.remove_user_topic(author_id, thread_id);
-		STATE.user_state_mut(author_id).current_topic_id = None;
+		CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id = None;
 
 		sqlx::query!(
 			"
@@ -68,8 +67,8 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 
 		let private_channel_id = CACHE.discord.private_channel(author_id).await?;
 		DISCORD_CLIENT.create_message(*private_channel_id)
-			.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))?
-			.components(&[create_topic_button(Some(topic.server_id))])?
+			.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))
+			.components(&[create_topic_button(Some(topic.server_id))])
 			.await?;
 	}
 

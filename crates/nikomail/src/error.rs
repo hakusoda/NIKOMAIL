@@ -1,86 +1,28 @@
-use tracing_error::SpanTrace;
-
 #[derive(Debug, thiserror::Error)]
-pub enum ErrorKind {
-	#[error("HTTP Error: {0}")]
-	HttpError(#[from] reqwest::Error),
+pub enum Error {
+	#[error("Cache: {0}")]
+	Cache(#[from] nikomail_cache::Error),
 
-	#[error("HTTP Error: {0} {1}")]
-	FormattedHttpError(String, String),
+	#[error("Command: {0}")]
+	Command(#[from] nikomail_commands::Error),
 
-	#[error("Discord Error: {0}")]
-	TwilightHttpError(#[from] twilight_http::Error),
+	#[error("Model: {0}")]
+	Model(#[from] nikomail_models::Error),
 
-	#[error("Discord Validation Error: {0}")]
-	TwilightValidationError(#[from] twilight_validate::request::ValidationError),
+	#[error("Reqwest: {0}")]
+	Reqwest(#[from] reqwest::Error),
 
-	#[error("Discord Channel Validation Error: {0}")]
-	TwilightChannelValidationError(#[from] twilight_validate::channel::ChannelValidationError),
+	#[error("JSON: {0}")]
+	Json(#[from] serde_json::Error),
 
-	#[error("Discord Message Validation Error: {0}")]
-	TwilightMessageValidationError(#[from] twilight_validate::message::MessageValidationError),
+	#[error("Twilight HTTP Deserialise: {0}")]
+	TwilightHttpDeserialise(#[from] twilight_http::response::DeserializeBodyError),
 
-	#[error("Discord Deserialisation Error: {0}")]
-	TwilightDeserialiseError(#[from] twilight_http::response::DeserializeBodyError),
+	#[error("Twilight HTTP: {0}")]
+	TwilightHttp(#[from] twilight_http::Error),
 
-	#[error("Timestamp Error: {0}")]
-	TwilightTimestampError(#[from] twilight_model::util::datetime::TimestampParseError),
-	#[error("Image Source Url Error: {0}")]
-	TwilightImageUrlError(#[from] twilight_util::builder::embed::image_source::ImageSourceUrlError),
-
-	#[error("Gateway Send Error: {0}")]
-	TwilightSendError(#[from] twilight_gateway::error::SendError),
-
-	#[error("User Ids Error: {0}")]
-	TwilightUserIdsError(#[from] twilight_model::gateway::payload::outgoing::request_guild_members::UserIdsError),
-
-	#[error("OneShot Receive Error: {0}")]
-	OneshotReceiveError(#[from] tokio::sync::oneshot::error::RecvError),
-
-	#[error("JSON Error: {0}")]
-	JsonError(#[from] serde_json::Error),
-	#[error("SIMD Error: {0}")]
-	SimdError(#[from] simd_json::Error),
-	#[error("System Time Error: {0}")]
-	SystemTimeError(#[from] std::time::SystemTimeError),
-
-	#[error("SQLx Error: {0}")]
-	SqlxError(#[from] sqlx::Error),
-
-	#[error("Cache Error: {0}")]
-	CacheError(#[from] nikomail_cache::Error),
-
-	#[error("Integer Parsing Error: {0}")]
-	ParseIntegerError(#[from] std::num::ParseIntError),
-	#[error("Unknown Error")]
-	Unknown
-}
-
-#[derive(Debug)]
-pub struct Error {
-	pub kind: ErrorKind,
-	pub context: SpanTrace
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "{}", self.kind)
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.kind.source()
-    }
-}
-
-impl<E: Into<ErrorKind>> From<E> for Error {
-    fn from(source: E) -> Self {
-        Self {
-			kind: Into::<ErrorKind>::into(source),
-			context: SpanTrace::capture()
-        }
-    }
+	#[error("SQLx: {0}")]
+	Sqlx(#[from] sqlx::Error)
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

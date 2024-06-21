@@ -1,3 +1,4 @@
+use nikomail_cache::CACHE;
 use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT };
 use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::{
@@ -5,24 +6,25 @@ use twilight_model::{
 	gateway::payload::incoming::ReactionAdd
 };
 
-use crate::{ state::STATE, Result };
+use crate::Result;
 
 pub async fn reaction_add(reaction_add: ReactionAdd) -> Result<()> {
-	if reaction_add.user_id.get() != DISCORD_APP_ID.get() {
-		if let Some(copied_message_source) = STATE.copied_message_source(reaction_add.channel_id, reaction_add.message_id) {
-			let (copied_message_channel_id, copied_message_id, is_thread_starter) = *copied_message_source;
-			if !is_thread_starter {
-				let reaction = match &reaction_add.emoji {
-					ReactionType::Custom { animated: _, id, name } =>
-						RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
-					ReactionType::Unicode { name } =>
-						RequestReactionType::Unicode { name }
-				};
+	if
+		reaction_add.user_id.get() != DISCORD_APP_ID.get() &&
+		let Some(relayed_message_ref) = CACHE.nikomail.relayed_message_by_ref(reaction_add.message_id).await? &&
+		let Some(relayed_message) = relayed_message_ref.value() &&
+		!relayed_message.is_topic_starter
+	{
+		let (channel_id, message_id) = relayed_message.message_other_ids(reaction_add.message_id);
+		let reaction = match &reaction_add.emoji {
+			ReactionType::Custom { animated: _, id, name } =>
+				RequestReactionType::Custom { id: *id, name: name.as_ref().map(|x| x.as_str()) },
+			ReactionType::Unicode { name } =>
+				RequestReactionType::Unicode { name }
+		};
 
-				DISCORD_CLIENT.create_reaction(copied_message_channel_id, copied_message_id, &reaction)
-					.await?;
-			}
-		}
+		DISCORD_CLIENT.create_reaction(channel_id, message_id, &reaction)
+			.await?;
 	}
 
 	Ok(())

@@ -16,28 +16,24 @@ rust-version.workspace = true
 clap = { version = "4.5.4", features = ["derive"] }
 sqlx.workspace = true
 tokio.workspace = true
-serde = { version = "1.0.203", features = ["derive"] }
+serde.workspace = true
 chrono = { version = "0.4.38", features = ["serde"] }
-tracing = "0.1.40"
+tracing.workspace = true
 futures.workspace = true
 dashmap.workspace = true
-reqwest = { version = "0.12.4", features = ["json"] }
+reqwest = "0.12.4"
 thiserror.workspace = true
 once_cell.workspace = true
 simd-json = "0.13.10"
-serde_repr = "0.1.19"
+serde_repr.workspace = true
 serde_json = "1.0.117"
-derive_more = "0.99.17"
 nikomail_util.path = "../nikomail_util"
-tracing-error.workspace = true
 twilight-http.workspace = true
-twilight-util = { version = "0.15.4", features = ["builder"] }
+twilight-util = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["builder"] }
 twilight-model.workspace = true
 async-once-cell.workspace = true
 nikomail_cache.path = "../nikomail_cache"
-nikomail_macros.path = "../nikomail_macros"
+nikomail_commands.path = "../nikomail_commands"
 nikomail_models.path = "../nikomail_models"
 twilight-gateway.workspace = true
-twilight-validate = "0.15.3"
 tracing-subscriber = "0.3.18"
-async-trait = "0.1.80"

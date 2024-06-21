@@ -1,19 +1,15 @@
-use std::sync::Arc;
 use twilight_model::gateway::{
 	payload::outgoing::update_presence::UpdatePresencePayload,
 	presence::{ Status, Activity, ActivityType }
 };
-use twilight_gateway::{ Shard, Config, Intents, ShardId };
-
-pub use context::Context;
+use twilight_gateway::{ Shard, Intents, ShardId, StreamExt, ConfigBuilder, MessageSender, EventTypeFlags };
 
 pub mod event;
-pub mod context;
 
-pub async fn initialise() {
+pub fn initialise() -> MessageSender {
 	tracing::info!("initialising discord gateway");
 
-	let config = Config::builder(
+	let config = ConfigBuilder::new(
 		env!("DISCORD_BOT_TOKEN").to_string(),
 			Intents::DIRECT_MESSAGES |
 			Intents::DIRECT_MESSAGE_REACTIONS |
@@ -44,22 +40,17 @@ pub async fn initialise() {
 		}], false, None, Status::Online).unwrap())
 		.build();
 	let mut shard = Shard::with_config(ShardId::ONE, config);
-	let context = Arc::new(Context::new(shard.sender()));
+	let message_sender = shard.sender();
+	tokio::spawn(async move {
+		while let Some(item) = shard.next_event(EventTypeFlags::all()).await {
+			let Ok(event) = item else {
+				tracing::warn!(source = ?item.unwrap_err(), "error receiving event");
+				continue;
+			};
+	
+			event::handle_event(event);
+		}
+	});
 
-	loop {
-		let item = shard.next_event().await;
-		let Ok(event) = item else {
-			let source = item.unwrap_err();
-			tracing::error!(?source, "error receiving event");
-
-			if source.is_fatal() {
-				break;
-			}
-
-			continue;
-		};
-
-		let context = Arc::clone(&context);
-		context.handle_event(event);
-	}
+	message_sender
 }

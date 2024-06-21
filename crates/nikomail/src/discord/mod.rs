@@ -7,10 +7,9 @@ use twilight_model::{
 use async_once_cell::Lazy;
 
 pub mod gateway;
-pub mod commands;
 pub mod interactions;
 
-pub type CommandsFuture = impl Future<Output = Vec<Command>>;
+pub type CommandsFuture = impl Future<Output = Vec<Command>> + Send;
 pub static DISCORD_APP_COMMANDS: Lazy<Vec<Command>, CommandsFuture> = Lazy::new(async {
 	DISCORD_INTERACTION_CLIENT.global_commands().await.unwrap().model().await.unwrap()
 });

@@ -1,7 +1,8 @@
+use nikomail_cache::CACHE;
 use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT };
 use twilight_model::gateway::payload::incoming::TypingStart;
 
-use crate::{ state::STATE, Result, CACHE };
+use crate::Result;
 
 pub async fn typing_start(typing_start: TypingStart) -> Result<()> {
 	if typing_start.user_id.get() != DISCORD_APP_ID.get() {
@@ -12,7 +13,7 @@ pub async fn typing_start(typing_start: TypingStart) -> Result<()> {
 					.await?;
 			}
 		} else {
-			let user_state = STATE.user_state(typing_start.user_id);
+			let user_state = CACHE.nikomail.user_state(typing_start.user_id).await?;
 			if let Some(current_topic_id) = user_state.current_topic_id {
 				DISCORD_CLIENT.create_typing_trigger(current_topic_id)
 					.await?;

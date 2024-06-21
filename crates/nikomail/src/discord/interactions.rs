@@ -1,59 +1,22 @@
 use serde::{ Serialize, Deserialize };
 use chrono::{ Utc, DateTime };
 use serde_repr::*;
+use nikomail_commands::{
+	command::CommandResponse,
+	commands::COMMANDS,
+	Interaction
+};
 use nikomail_util::DISCORD_INTERACTION_CLIENT;
 use twilight_model::{
-	id::{
-		marker::{ UserMarker, GuildMarker, ApplicationMarker, InteractionMarker },
-		Id
-	},
 	http::interaction::{ InteractionResponse, InteractionResponseData, InteractionResponseType },
-	guild::Permissions,
-	channel::{ message::MessageFlags, Channel, Message },
+	channel::message::MessageFlags,
 	application::interaction::{
-		application_command::{ CommandDataOption, CommandOptionValue },
-		Interaction as TwilightInteraction, InteractionData, InteractionType
+		application_command::CommandOptionValue,
+		Interaction as TwilightInteraction, InteractionData
 	}
 };
 
-use crate::{ Result, Context, CommandResponse };
-use super::commands::COMMANDS;
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Interaction {
-    pub app_permissions: Option<Permissions>,
-    pub application_id: Id<ApplicationMarker>,
-    pub channel: Option<Channel>,
-    pub data: Option<InteractionData>,
-    pub guild_id: Option<Id<GuildMarker>>,
-    pub guild_locale: Option<String>,
-    pub id: Id<InteractionMarker>,
-    pub kind: InteractionType,
-    pub locale: Option<String>,
-    pub message: Option<Message>,
-    pub token: String,
-    pub user_id: Option<Id<UserMarker>>,
-}
-
-impl Interaction {
-	pub fn options(&self) -> Vec<&CommandDataOption> {
-		match &self.data {
-			Some(InteractionData::ApplicationCommand(x)) => x.options.iter().collect(),
-			_ => vec![]
-		}
-	}
-	/*pub async fn user(&self) -> Result<Option<Ref<'_, Id<UserMarker>, CachedUser>>> {
-		Ok(if let Some(user_id) = self.user_id {
-			Some(DISCORD_MODELS.user(user_id).await?)
-		} else { None })
-	}*/
-
-	/*pub async fn member(&self) -> Result<Option<Ref<'static, (Id<GuildMarker>, Id<UserMarker>), CachedMember>>> {
-		Ok(if let Some(user_id) = self.user_id && let Some(guild_id) = self.guild_id {
-			Some(CACHE.discord.member(guild_id, user_id).await?)
-		} else { None })
-	}*/
-}
+use crate::Result;
 
 #[derive(Deserialize_repr, Debug)]
 #[repr(u8)]
@@ -94,7 +57,7 @@ pub struct EmbedFooter {
 	pub icon_url: Option<String>
 }
 
-async fn parse_interaction(context: Context, interaction: Interaction) -> Result<InteractionResponse> {
+async fn parse_interaction(interaction: Interaction) -> Result<InteractionResponse> {
 	match interaction.data.as_ref().unwrap() {
 		InteractionData::ApplicationCommand(data) => {
 			if let Some(command) = COMMANDS.iter().find(|x| x.name == data.name) {
@@ -105,17 +68,17 @@ async fn parse_interaction(context: Context, interaction: Interaction) -> Result
 						return Ok(InteractionResponse {
 							kind: InteractionResponseType::ApplicationCommandAutocompleteResult,
 							data: Some(InteractionResponseData {
-								choices: Some(command_option.autocomplete.unwrap()(context, interaction, partial).await?),
+								choices: Some(command_option.autocomplete.unwrap()(interaction, partial).await?),
 								..Default::default()
 							})
 						});
 					}
 				}
-				let response = match (command.handler)(context, interaction).await {
+				let response = match (command.handler)(interaction).await {
 					Ok(x) => x,
 					Err(error) => {
 						println!("{error}");
-						return Err(error);
+						return Err(error.into());
 					}
 				};
 				Ok(match response {
@@ -158,8 +121,8 @@ async fn parse_interaction(context: Context, interaction: Interaction) -> Result
 	}
 }
 
-#[tracing::instrument(skip(context), level = "trace")]
-pub async fn handle_interaction(context: Context, interaction: TwilightInteraction) -> Result<()> {
+#[tracing::instrument(level = "trace")]
+pub async fn handle_interaction(interaction: TwilightInteraction) -> Result<()> {
 	let id = interaction.id;
 	let token = interaction.token.clone();
 	/*if let Some(user) = interaction.author() {
@@ -184,7 +147,7 @@ pub async fn handle_interaction(context: Context, interaction: TwilightInteracti
 		}
 	};
 
-	let response = parse_interaction(context, interaction).await?;
+	let response = parse_interaction(interaction).await?;
 	DISCORD_INTERACTION_CLIENT.create_response(id, &token, &response)
 		.await?;
 
