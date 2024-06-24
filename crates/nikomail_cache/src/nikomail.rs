@@ -40,43 +40,67 @@ impl NikomailCache {
 	}
 
 	pub async fn topic(&self, thread_id: Id<ChannelMarker>) -> Result<Ref<'_, Id<ChannelMarker>, Option<TopicModel>>> {
-		self.topic_mut(thread_id).await.map(RefMut::downgrade)
+		Ok(match self.topics.get(&thread_id) {
+			Some(model) => model,
+			None => self._insert_topic(thread_id).await?.downgrade()
+		})
 	}
 
 	pub async fn topic_mut(&self, thread_id: Id<ChannelMarker>) -> Result<RefMut<Id<ChannelMarker>, Option<TopicModel>>> {
 		Ok(match self.topics.get_mut(&thread_id) {
 			Some(model) => model,
-			None => self.topics.entry(thread_id)
-				.insert(TopicModel::get(thread_id).await?)
+			None => self._insert_topic(thread_id).await?
 		})
 	}
 
+	async fn _insert_topic(&self, thread_id: Id<ChannelMarker>) -> Result<RefMut<Id<ChannelMarker>, Option<TopicModel>>> {
+		Ok(self.topics.entry(thread_id)
+			.insert(TopicModel::get(thread_id).await?)
+		)
+	}
+
 	pub async fn server(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, ServerModel>> {
-		self.server_mut(guild_id).await.map(RefMut::downgrade)
+		Ok(match self.servers.get(&guild_id) {
+			Some(model) => model,
+			None => self._insert_server(guild_id).await?.downgrade()
+		})
 	}
 
 	pub async fn server_mut(&self, guild_id: Id<GuildMarker>) -> Result<RefMut<Id<GuildMarker>, ServerModel>> {
 		Ok(match self.servers.get_mut(&guild_id) {
 			Some(model) => model,
-			None => self.servers.entry(guild_id)
-				.insert(ServerModel::get(guild_id).await?.unwrap_or_else(|| ServerModel::from(guild_id)))
+			None => self._insert_server(guild_id).await?
 		})
 	}
 
+	async fn _insert_server(&self, guild_id: Id<GuildMarker>) -> Result<RefMut<Id<GuildMarker>, ServerModel>> {
+		Ok(self.servers.entry(guild_id)
+			.insert(ServerModel::get(guild_id).await?.unwrap_or_else(|| ServerModel::from(guild_id)))
+		)
+	}
+
 	pub async fn user_state(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, UserStateModel>> {
-		self.user_state_mut(user_id).await.map(RefMut::downgrade)
+		Ok(match self.user_states.get(&user_id) {
+			Some(model) => model,
+			None => self._insert_user_state(user_id).await?.downgrade()
+		})
 	}
 
 	pub async fn user_state_mut(&self, user_id: Id<UserMarker>) -> Result<RefMut<Id<UserMarker>, UserStateModel>> {
 		Ok(match self.user_states.get_mut(&user_id) {
 			Some(model) => model,
-			None => self.user_states.entry(user_id)
-				.insert(
-					UserStateModel::get(user_id)
-					.await?
-					.unwrap_or_else(|| UserStateModel::new(user_id))
-				)
+			None => self._insert_user_state(user_id).await?
 		})
+	}
+
+	async fn _insert_user_state(&self, user_id: Id<UserMarker>) -> Result<RefMut<Id<UserMarker>, UserStateModel>> {
+		Ok(self.user_states.entry(user_id)
+			.insert(
+				UserStateModel::get(user_id)
+				.await?
+				.unwrap_or_else(|| UserStateModel::new(user_id))
+			)
+		)
 	}
 
 	pub async fn user_topics(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, HashSet<Id<ChannelMarker>>>> {
