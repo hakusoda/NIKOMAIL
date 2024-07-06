@@ -1,13 +1,19 @@
 use async_trait::async_trait;
 use twilight_model::{
 	id::{
-		marker::{ GuildMarker, ChannelMarker },
+		marker::{ ChannelMarker, GuildMarker },
 		Id
 	},
 	application::interaction::application_command::CommandOptionValue
 };
 
-use crate::{ Error, Result, Interaction };
+use crate::{ command::CommandOptionKind, Context };
+
+#[derive(Debug, thiserror::Error)]
+pub enum SlashArgError {
+	#[error("Invalid")]
+	Invalid
+}
 
 #[macro_export]
 macro_rules! parse_command_argument {
@@ -63,7 +69,7 @@ macro_rules! parse_command_arguments {
         async {
 			#[allow(unused_variables)]
 			let (interaction, args) = ($interaction, $args);
-            Ok::<_, $crate::error::Error>(( $(
+            Ok::<_, $crate::macros::SlashArgError>(( $(
                 $crate::parse_command_argument!( interaction, args => $name: $($type)* ),
             )* ))
         }
@@ -72,41 +78,75 @@ macro_rules! parse_command_arguments {
 
 #[async_trait]
 pub trait CommandArgumentExtractor<T>: Sized {
+	fn create(self) -> CommandOptionKind;
+
 	async fn extract(
 		self,
-		interaction: &Interaction,
+		context: &Context,
 		value: &CommandOptionValue
-	) -> Result<T>;
+	) -> Result<T, SlashArgError>;
 }
 
 #[async_trait]
 impl<T: ArgumentConvert + Send + Sync> CommandArgumentExtractor<T> for std::marker::PhantomData<T> {
+	fn create(self) -> CommandOptionKind {
+		T::create()
+	}
+
 	async fn extract(
 		self,
-		interaction: &Interaction,
+		context: &Context,
 		value: &CommandOptionValue
-	) -> Result<T> {
+	) -> Result<T, SlashArgError> {
 		T::convert(
-			interaction.guild_id,
-			interaction.channel.as_ref().map(|x| x.id),
+			context.interaction.guild_id,
+			context.interaction.channel.as_ref().map(|x| x.id),
 			value
 		).await
 	}
 }
 
 #[async_trait]
-trait ArgumentConvert: Sized {
-	async fn convert(guild_id: Option<Id<GuildMarker>>, channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self>;
+pub trait ArgumentConvert: Sized {
+	fn create() -> CommandOptionKind;
+
+	async fn convert(guild_id: Option<Id<GuildMarker>>, channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self, SlashArgError>;
 }
 
 #[async_trait]
 impl ArgumentConvert for String {
-	async fn convert(_guild_id: Option<Id<GuildMarker>>, _channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self> {
+	fn create() -> CommandOptionKind {
+		CommandOptionKind::String
+	}
+
+	async fn convert(_guild_id: Option<Id<GuildMarker>>, _channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self, SlashArgError> {
 		match value {
 			CommandOptionValue::String(x) => Ok(x.clone()),
-			_ => Err(Error::Unknown)
+			_ => Err(SlashArgError::Invalid)
 		}
 	}
+}
+
+#[async_trait]
+impl ArgumentConvert for Id<ChannelMarker> {
+	fn create() -> CommandOptionKind {
+		CommandOptionKind::Channel
+	}
+
+	async fn convert(_guild_id: Option<Id<GuildMarker>>, _channel_id: Option<Id<ChannelMarker>>, value: &CommandOptionValue) -> Result<Self, SlashArgError> {
+		match value {
+			CommandOptionValue::Channel(x) => Ok(*x),
+			_ => Err(SlashArgError::Invalid)
+		}
+	}
+}
+
+#[macro_export]
+macro_rules! create_slash_argument {
+    ($target:ty) => {{
+        use $crate::macros::CommandArgumentExtractor as _;
+        (&&std::marker::PhantomData::<$target>).create()
+    }};
 }
 
 #[macro_export]

@@ -1,18 +1,13 @@
-use serde::{ Serialize, Deserialize };
 use chrono::{ Utc, DateTime };
-use serde_repr::*;
-use nikomail_commands::{
-	command::CommandResponse,
-	commands::COMMANDS,
-	Interaction
-};
+use nikomail_commands_core::{ Context, Interaction };
 use nikomail_util::DISCORD_INTERACTION_CLIENT;
+use serde::{ Serialize, Deserialize };
+use serde_repr::*;
 use twilight_model::{
 	http::interaction::{ InteractionResponse, InteractionResponseData, InteractionResponseType },
-	channel::message::MessageFlags,
 	application::interaction::{
 		application_command::CommandOptionValue,
-		Interaction as TwilightInteraction, InteractionData
+		Interaction as TwilightInteraction
 	}
 };
 
@@ -57,78 +52,47 @@ pub struct EmbedFooter {
 	pub icon_url: Option<String>
 }
 
-async fn parse_interaction(interaction: Interaction) -> Result<InteractionResponse> {
-	match interaction.data.as_ref().unwrap() {
-		InteractionData::ApplicationCommand(data) => {
-			if let Some(command) = COMMANDS.iter().find(|x| x.name == data.name) {
-				for option in data.options.iter() {
-					if let CommandOptionValue::Focused(partial, _kind) = &option.value {
-						let partial = partial.clone();
-						let command_option = command.options.iter().find(|x| x.name == option.name).unwrap();
-						return Ok(InteractionResponse {
-							kind: InteractionResponseType::ApplicationCommandAutocompleteResult,
-							data: Some(InteractionResponseData {
-								choices: Some(command_option.autocomplete.unwrap()(interaction, partial).await?),
-								..Default::default()
-							})
-						});
-					}
-				}
-				let response = match (command.handler)(interaction).await {
-					Ok(x) => x,
-					Err(error) => {
-						println!("{error}");
-						return Err(error.into());
-					}
-				};
-				Ok(match response {
-					CommandResponse::Message { flags, content, components } =>
-						InteractionResponse {
-							kind: InteractionResponseType::ChannelMessageWithSource,
-							data: Some(InteractionResponseData {
-								flags,
-								content,
-								components,
-								..Default::default()
-							})
-						},
-					CommandResponse::Defer =>
-						InteractionResponse {
-							kind: InteractionResponseType::DeferredChannelMessageWithSource,
-							data: Some(InteractionResponseData {
-								flags: Some(MessageFlags::EPHEMERAL),
-								..Default::default()
-							})
-						}
-				})
-			} else {
-				Ok(InteractionResponse {
-					kind: InteractionResponseType::ChannelMessageWithSource,
+async fn parse_interaction(context: Context) -> Result<()> {
+	if let Some((context, command)) = nikomail_commands::commands::process_context(context) {
+		for option in context.options.iter() {
+			if let CommandOptionValue::Focused(partial, _kind) = &option.value {
+				let interaction_id = context.interaction.id;
+				let interaction_token = context.interaction.token.clone();
+
+				let partial = partial.clone();
+				let command_option = command.options
+					.iter()
+					.find(|x| x.name == option.name)
+					.unwrap();
+				let choices = command_option.autocomplete.unwrap()(context, partial).await?;
+				DISCORD_INTERACTION_CLIENT.create_response(interaction_id, &interaction_token, &InteractionResponse {
+					kind: InteractionResponseType::ApplicationCommandAutocompleteResult,
 					data: Some(InteractionResponseData {
-						content: Some("<:niko_look_left:1227198516590411826> erm... this command hasn't been implemented yet...".into()),
+						choices: Some(choices),
 						..Default::default()
 					})
-				})
+				}).await?;
+
+				return Ok(());
 			}
-		},
-		_ => Ok(InteractionResponse {
-			kind: InteractionResponseType::ChannelMessageWithSource,
-			data: Some(InteractionResponseData {
-				content: Some("<:niko_look_left:1227198516590411826> erm... unsure what you're trying to do but i don't know how to handle this yet!".into()),
-				..Default::default()
-			})
-		})
+		}
+
+		match (command.handler)(context).await {
+			Ok(x) => x,
+			Err(error) => {
+				println!("{error}");
+				return Err(error.into());
+			}
+		}
+	} else {
+		println!("command no tfoun");
 	}
+
+	Ok(())
 }
 
 #[tracing::instrument(level = "trace")]
 pub async fn handle_interaction(interaction: TwilightInteraction) -> Result<()> {
-	let id = interaction.id;
-	let token = interaction.token.clone();
-	/*if let Some(user) = interaction.author() {
-		DISCORD_MODELS.users.insert(user.id, user.clone().into());
-	}*/
-
 	let interaction = Interaction {
 		app_permissions: interaction.app_permissions,
 		application_id: interaction.application_id,
@@ -147,8 +111,7 @@ pub async fn handle_interaction(interaction: TwilightInteraction) -> Result<()> 
 		}
 	};
 
-	let response = parse_interaction(interaction).await?;
-	DISCORD_INTERACTION_CLIENT.create_response(id, &token, &response)
+	parse_interaction(Context::new(interaction))
 		.await?;
 
 	Ok(())

@@ -1,7 +1,7 @@
 cargo-features = ["edition2024"]
 
 [package]
-name = "nikomail_cache"
+name = "nikomail_commands_core"
 description = "anonymous mail prototype"
 
 authors.workspace = true
@@ -13,12 +13,17 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-dashmap.workspace = true
-futures.workspace = true
-nikomail_models.path = "../nikomail_models"
+async-trait = "0.1.80"
+
+nikomail_cache.path = "../nikomail_cache"
+nikomail_commands_core_macros.path = "../nikomail_commands_core_macros"
 nikomail_util.path = "../nikomail_util"
-once_cell.workspace = true
+
+serde.workspace = true
+serde_repr.workspace = true
 sqlx.workspace = true
+
 thiserror.workspace = true
 twilight-http.workspace = true
 twilight-model.workspace = true
+twilight-util.workspace = true

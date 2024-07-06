@@ -5,10 +5,8 @@ use serde::Serialize;
 use tracing::{ Level, info };
 use once_cell::sync::Lazy;
 use nikomail_cache::CACHE;
-use nikomail_commands::{
-	command::{ Command, CommandContext, CommandOption },
-	commands::COMMANDS
-};
+use nikomail_commands::commands::COMMANDS;
+use nikomail_commands_core::command::{ Command, CommandContext, CommandOption, CommandOptionKind };
 use nikomail_models::nikomail::RelayedMessageModel;
 use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT, PG_POOL };
 use twilight_model::{
@@ -46,13 +44,23 @@ fn app_command(command: &Command, kind: CommandType) -> Result<ApplicationComman
 		CommandType::User => "",
 		_ => command.description.as_ref().map_or("there is no description yet, how sad...", |x| x.as_str())
 	};
+	let mut options = command.options.clone();
+	for subcommand in command.subcommands.iter() {
+		options.push(CommandOption {
+			kind: CommandOptionKind::SubCommand,
+			name: subcommand.name.clone(),
+			required: false,
+			description: subcommand.description.clone().or(Some("there is no description yet, how sad...".into())),
+			autocomplete: None,
+			channel_kinds: None,
+			options: subcommand.options.clone()
+		});
+	}
+
 	Ok(ApplicationCommand {
 		kind,
 		name: command.name.clone(),
-		options: command.options.iter().map(|x| CommandOption {
-			description: x.description.clone().or(Some("there is no description yet, how sad...".into())),
-			..x.clone()
-		}).collect(),
+		options,
 		contexts: command.contexts.clone(),
 		description: description.to_string(),
 		default_member_permissions: command.default_member_permissions()

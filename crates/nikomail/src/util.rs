@@ -1,8 +1,11 @@
 use twilight_model::{
-	id::{ marker::GuildMarker, Id },
 	channel::message::{
 		component::{ Button, ActionRow, ButtonStyle, Component },
 		ReactionType
+	},
+	id::{
+		marker::GuildMarker,
+		Id
 	}
 };
 

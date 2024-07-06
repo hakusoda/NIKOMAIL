@@ -20,7 +20,7 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 			let channel = CACHE.discord.channel(message_create.channel_id).await?;
 			if channel.kind.is_thread() && let Some(topic) = CACHE.nikomail.topic(channel.id).await?.value() {
 				let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
-				copy_message_and_send(message_create, *private_channel_id.value(), channel.id)
+				copy_message_and_send(message_create, private_channel_id, channel.id)
 					.await?;
 			}
 		} else {

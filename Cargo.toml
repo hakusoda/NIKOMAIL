@@ -13,10 +13,10 @@ rust-version = "1.79"
 
 [workspace.dependencies]
 sqlx = { version = "0.7.4", features = ["uuid", "json", "chrono", "macros", "postgres", "tls-native-tls", "rust_decimal", "runtime-tokio"] }
-tokio = { version = "1.37.0", features = ["full"] }
+tokio = { version = "1.38.0", features = ["full"] }
 serde = { version = "1.0.203", features = ["derive"] }
 futures = "0.3.30"
-dashmap = { version = "5.5.3", features = ["inline"] }
+dashmap = { version = "6.0.1", features = ["inline"] }
 thiserror = "1.0.61"
 once_cell = "1.19.0"
 serde_repr = "0.1.19"
@@ -25,6 +25,7 @@ tracing = "0.1.40"
 twilight-gateway = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["simd-json"] }
 twilight-http = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["simd-json"] }
 twilight-model = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028" }
+twilight-util = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["builder"] }
 
 [profile.dev]
 lto = false

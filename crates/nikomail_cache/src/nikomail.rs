@@ -1,15 +1,15 @@
-use std::collections::HashSet;
 use dashmap::{
 	mapref::one::{ Ref, RefMut },
 	DashMap
 };
 use futures::stream::TryStreamExt;
+use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel, ServerModel, UserStateModel };
 use nikomail_util::PG_POOL;
+use std::collections::HashSet;
 use twilight_model::id::{
 	marker::{ ChannelMarker, GuildMarker, MessageMarker, UserMarker },
 	Id
 };	
-use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel, ServerModel, UserStateModel };
 
 use crate::Result;
 

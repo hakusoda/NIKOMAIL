@@ -4,7 +4,10 @@ pub enum Error {
 	Cache(#[from] nikomail_cache::Error),
 
 	#[error("Command: {0}")]
-	Command(#[from] nikomail_commands::Error),
+	Command(#[from] nikomail_commands_core::Error),
+
+	#[error("Command Core: {0}")]
+	CommandCore(#[from] nikomail_commands_core::CoreError),
 
 	#[error("Model: {0}")]
 	Model(#[from] nikomail_models::Error),

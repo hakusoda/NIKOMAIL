@@ -4,16 +4,17 @@ use dashmap::{
 };
 use nikomail_util::DISCORD_CLIENT;
 use twilight_model::id::{
-	marker::{ UserMarker, ChannelMarker },
+	marker::{ ChannelMarker, GuildMarker, UserMarker },
 	Id
 };	
-use nikomail_models::discord::ChannelModel;
+use nikomail_models::discord::{ ChannelModel, GuildModel };
 
 use crate::Result;
 
 #[derive(Default)]
 pub struct DiscordCache {
 	pub channels: DashMap<Id<ChannelMarker>, ChannelModel>,
+	pub guilds: DashMap<Id<GuildMarker>, GuildModel>,
 	pub private_channels: DashMap<Id<UserMarker>, Id<ChannelMarker>>
 }
 
@@ -27,8 +28,17 @@ impl DiscordCache {
 		})
 	}
 
-	pub async fn private_channel(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, Id<ChannelMarker>>> {
-		Ok(match self.private_channels.get(&user_id) {
+	pub async fn guild(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, GuildModel>> {
+		Ok(match self.guilds.get(&guild_id) {
+			Some(model) => model,
+			None => self.guilds.entry(guild_id)
+				.insert(DISCORD_CLIENT.guild(guild_id).await?.model().await?.into())
+				.downgrade()
+		})
+	}
+
+	pub async fn private_channel(&self, user_id: Id<UserMarker>) -> Result<Id<ChannelMarker>> {
+		Ok(*match self.private_channels.get(&user_id) {
 			Some(model) => model,
 			None => self.private_channels.entry(user_id)
 				.insert({

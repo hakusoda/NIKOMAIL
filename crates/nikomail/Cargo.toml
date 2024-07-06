@@ -13,27 +13,25 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-clap = { version = "4.5.4", features = ["derive"] }
-sqlx.workspace = true
-tokio.workspace = true
-serde.workspace = true
-chrono = { version = "0.4.38", features = ["serde"] }
-tracing.workspace = true
-futures.workspace = true
-dashmap.workspace = true
-reqwest = "0.12.4"
-thiserror.workspace = true
-once_cell.workspace = true
-simd-json = "0.13.10"
-serde_repr.workspace = true
-serde_json = "1.0.117"
-nikomail_util.path = "../nikomail_util"
-twilight-http.workspace = true
-twilight-util = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["builder"] }
-twilight-model.workspace = true
 async-once-cell.workspace = true
+chrono = { version = "0.4.38", features = ["serde"] }
+clap = { version = "4.5.4", features = ["derive"] }
 nikomail_cache.path = "../nikomail_cache"
 nikomail_commands.path = "../nikomail_commands"
+nikomail_commands_core.path = "../nikomail_commands_core"
 nikomail_models.path = "../nikomail_models"
-twilight-gateway.workspace = true
+nikomail_util.path = "../nikomail_util"
+once_cell.workspace = true
+reqwest = "0.12.4"
+serde.workspace = true
+serde_json = "1.0.117"
+serde_repr.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
 tracing-subscriber = "0.3.18"
+twilight-http.workspace = true
+twilight-model.workspace = true
+twilight-util.workspace = true
+twilight-gateway.workspace = true

@@ -6,9 +6,6 @@ pub enum Error {
 	#[error("SQLx: {0}")]
 	Sqlx(#[from] sqlx::Error),
 
-	#[error("Twilight HTTP: {0}")]
-	TwilightHttp(#[from] twilight_http::Error),
-
 	#[error("Unknown")]
 	Unknown
 }

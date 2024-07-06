@@ -13,20 +13,11 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-async-trait = "0.1.80"
-
 nikomail_cache.path = "../nikomail_cache"
-nikomail_macros.path = "../nikomail_macros"
+nikomail_commands_core.path = "../nikomail_commands_core"
 nikomail_util.path = "../nikomail_util"
-
 once_cell.workspace = true
-
-serde.workspace = true
-serde_repr.workspace = true
 sqlx.workspace = true
-
 thiserror.workspace = true
-tokio.workspace = true
 tracing.workspace = true
-twilight-http.workspace = true
 twilight-model.workspace = true

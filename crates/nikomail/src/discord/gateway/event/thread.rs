@@ -23,6 +23,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 	if thread_update.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
 		if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 			let author_id = topic.author_id;
+			let guild_id = topic.server_id;
 			CACHE.nikomail.remove_user_topic(author_id, thread_id);
 			CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id = None;
 
@@ -36,14 +37,17 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 				.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 				.await?;
 
-			let private_channel_id = CACHE.discord.private_channel(author_id).await?;
-			DISCORD_CLIENT.create_message(*private_channel_id)
+			let private_channel_id = CACHE.discord
+				.private_channel(author_id)
+				.await?;
+			DISCORD_CLIENT.create_message(private_channel_id)
 				.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))
-				.components(&[create_topic_button(Some(topic.server_id))])
+				.components(&[create_topic_button(Some(guild_id))])
 				.await?;
 		}
 	}
 
+	println!("thread updated");
 	Ok(())
 }
 
@@ -52,6 +56,7 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 	let channel = CACHE.discord.channels.remove(&thread_id);
 	if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
 		let author_id = topic.author_id;
+		let guild_id = topic.server_id;
 		CACHE.nikomail.remove_user_topic(author_id, thread_id);
 		CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id = None;
 
@@ -65,10 +70,12 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 			.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 			.await?;
 
-		let private_channel_id = CACHE.discord.private_channel(author_id).await?;
-		DISCORD_CLIENT.create_message(*private_channel_id)
+		let private_channel_id = CACHE.discord
+			.private_channel(author_id)
+			.await?;
+		DISCORD_CLIENT.create_message(private_channel_id)
 			.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))
-			.components(&[create_topic_button(Some(topic.server_id))])
+			.components(&[create_topic_button(Some(guild_id))])
 			.await?;
 	}
 

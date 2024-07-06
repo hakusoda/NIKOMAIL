@@ -1,7 +1,7 @@
 cargo-features = ["edition2024"]
 
 [package]
-name = "nikomail_macros"
+name = "nikomail_commands_core_macros"
 description = "slash command proc-macros for mellow"
 
 authors.workspace = true
@@ -16,7 +16,7 @@ rust-version.workspace = true
 proc-macro = true
 
 [dependencies]
-syn = "2.0.58"
-quote = "1.0.35"
-darling = "0.20.8"
-proc-macro2 = "1.0.79"
+syn = { version = "2.0.68", features = ["fold"] }
+quote = "1.0.36"
+darling = "0.20.9"
+proc-macro2 = "1.0.86"
