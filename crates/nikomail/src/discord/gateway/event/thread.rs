@@ -47,7 +47,6 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 		}
 	}
 
-	println!("thread updated");
 	Ok(())
 }
 
