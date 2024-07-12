@@ -17,4 +17,5 @@ futures.workspace = true
 nikomail_util.path = "../nikomail_util"
 sqlx.workspace = true
 thiserror.workspace = true
+twilight-http.workspace = true
 twilight-model.workspace = true

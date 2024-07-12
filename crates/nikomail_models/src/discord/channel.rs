@@ -1,11 +1,14 @@
+use nikomail_util::DISCORD_CLIENT;
 use twilight_model::{
 	id::{
-		marker::{ GuildMarker, ChannelMarker },
+		marker::{ ChannelMarker, GuildMarker, UserMarker },
 		Id
 	},
 	channel::{ Channel, ChannelType },
 	gateway::payload::incoming::{ ChannelUpdate, ThreadCreate, ThreadUpdate }
 };
+
+use crate::Result;
 
 #[derive(Eq, Clone, Debug, PartialEq)]
 pub struct ChannelModel {
@@ -16,6 +19,26 @@ pub struct ChannelModel {
 }
 
 impl ChannelModel {
+	pub async fn get(channel_id: Id<ChannelMarker>) -> Result<ChannelModel> {
+		Ok(DISCORD_CLIENT
+			.channel(channel_id)
+			.await?
+			.model()
+			.await?
+			.into()
+		)
+	}
+
+	pub async fn get_private(user_id: Id<UserMarker>) -> Result<ChannelModel> {
+		Ok(DISCORD_CLIENT
+			.create_private_channel(user_id)
+			.await?
+			.model()
+			.await?
+			.into()
+		)
+	}
+
 	pub fn update(&mut self, channel_update: &ChannelUpdate) {
 		self.name.clone_from(&channel_update.name);
 	}

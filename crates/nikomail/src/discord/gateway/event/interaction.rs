@@ -33,7 +33,10 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					component_data.custom_id[13..].parse::<u64>().ok().and_then(Id::new_checked)
 				} else { None }
 			} {
-				let server = CACHE.nikomail.server(guild_id).await?;
+				let server = CACHE
+					.nikomail
+					.server(guild_id)
+					.await?;
 				if server.forum_channel_id.is_some() {
 					if server.blacklisted_user_ids.contains(&author_id) {
 						DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
@@ -124,7 +127,10 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 			let Some(guild_id) = interaction_create.guild_id &&
 			let Some(author_id) = interaction_create.author_id()
 		{
-			let server = CACHE.nikomail.server(guild_id).await?;
+			let server = CACHE
+				.nikomail
+				.server(guild_id)
+				.await?;
 			if server.blacklisted_user_ids.contains(&author_id) {
 				DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
 					kind: InteractionResponseType::ChannelMessageWithSource,
@@ -135,7 +141,10 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					})
 				}).await?;
 			} else if let Some(forum_channel_id) = server.forum_channel_id {
-				let private_channel_id = CACHE.discord.private_channel(author_id).await?;
+				let private_channel_id = CACHE
+					.discord
+					.private_channel(author_id)
+					.await?;
 				
 				let topic_name = modal_data.components[0].components[0].value.as_ref().unwrap();
 				let topic_message = modal_data.components[1].components[0].value.as_ref().unwrap();

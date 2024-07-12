@@ -1,6 +1,7 @@
+use nikomail_util::DISCORD_CLIENT;
 use twilight_model::{
 	id::{
-		marker::{ UserMarker, ChannelMarker },
+		marker::{ ChannelMarker, GuildMarker, UserMarker },
 		Id
 	},
 	util::ImageHash,
@@ -17,6 +18,8 @@ use twilight_model::{
 	},
 	gateway::payload::incoming::GuildUpdate
 };
+
+use crate::Result;
 
 #[derive(Debug)]
 pub struct GuildModel {
@@ -61,6 +64,16 @@ pub struct GuildModel {
 }
 
 impl GuildModel {
+	pub async fn get(guild_id: Id<GuildMarker>) -> Result<GuildModel> {
+		Ok(DISCORD_CLIENT
+			.guild(guild_id)
+			.await?
+			.model()
+			.await?
+			.into()
+		)
+	}
+
 	pub fn update(&mut self, guild_update: &GuildUpdate) {
 		self.afk_channel_id = guild_update.afk_channel_id;
         self.afk_timeout = guild_update.afk_timeout;
