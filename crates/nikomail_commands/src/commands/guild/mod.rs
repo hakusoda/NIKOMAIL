@@ -1,6 +1,7 @@
 use nikomail_cache::CACHE;
 use nikomail_commands_core::{ Context, Result, command };
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
+use std::pin::Pin;
 
 use crate::util::create_topic_button;
 
@@ -22,10 +23,14 @@ pub async fn blacklist_topic_author(context: Context) -> Result<()> {
 		if let Some(current_topic) = CACHE.nikomail.topic(context.channel_id().unwrap()).await?.value() {
 			let author_id = current_topic.author_id;
 			let guild_id = context.guild_id().unwrap();
-			let mut server = CACHE.nikomail.server_mut(guild_id).await?;
+			let mut server = CACHE
+				.nikomail
+				.server_mut(guild_id)
+				.await?;
 			server.blacklisted_user_ids.push(author_id);
 			
-			let user_ids = server.blacklisted_user_ids
+			let user_ids = server
+				.blacklisted_user_ids
 				.iter()
 				.map(|x| x.get() as i64)
 				.collect::<Vec<i64>>();
@@ -38,14 +43,20 @@ pub async fn blacklist_topic_author(context: Context) -> Result<()> {
 				user_ids.as_slice(),
 				guild_id.get() as i64
 			)
-				.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+				.execute(&*Pin::static_ref(&PG_POOL).await)
 				.await?;
 
-			let private_channel_id = CACHE.discord
+			let private_channel_id = CACHE
+				.discord
 				.private_channel(author_id)
 				.await?;
-			DISCORD_CLIENT.create_message(private_channel_id)
-				.content("## You have been blacklisted in [UNTRACKED]\nUnfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.")
+			let guild = CACHE
+				.discord
+				.guild(guild_id)
+				.await?;
+			DISCORD_CLIENT
+				.create_message(private_channel_id)
+				.content(&format!("## You have been blacklisted in {}\nUnfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.", guild.name))
 				.await?;
 
 			"success! the author of this topic has been blacklisted from using NIKOMAIL.\n*they will still be able to talk in this topic until you delete the thread, sorry i was crunched for time on this part...*"
