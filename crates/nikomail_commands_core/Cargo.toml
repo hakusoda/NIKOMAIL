@@ -13,7 +13,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-async-trait = "0.1.80"
+async-trait = "0.1.81"
 
 nikomail_cache.path = "../nikomail_cache"
 nikomail_commands_core_macros.path = "../nikomail_commands_core_macros"

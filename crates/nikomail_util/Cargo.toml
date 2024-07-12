@@ -14,10 +14,7 @@ rust-version.workspace = true
 
 [dependencies]
 async-once-cell.workspace = true
-
 once_cell.workspace = true
-
 sqlx.workspace = true
-
 twilight-http.workspace = true
 twilight-model.workspace = true
