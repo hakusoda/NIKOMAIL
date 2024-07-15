@@ -5,9 +5,9 @@ use std::pin::Pin;
 use twilight_model::{
 	channel::message::{
 		component::{ Button, ActionRow, ButtonStyle, Component },
-		ReactionType
+		MessageFlags, ReactionType
 	},
-	http::interaction::{ InteractionResponse, InteractionResponseType },
+	http::interaction::{ InteractionResponse, InteractionResponseData, InteractionResponseType },
 	id::{
 		marker::{ ChannelMarker, GuildMarker, InteractionMarker },
 		Id
@@ -21,7 +21,10 @@ pub async fn close_topic(interaction_id: Id<InteractionMarker>, interaction_toke
 		DISCORD_INTERACTION_CLIENT
 			.create_response(interaction_id, interaction_token, &InteractionResponse {
 				kind: InteractionResponseType::DeferredChannelMessageWithSource,
-				data: None
+				data: Some(InteractionResponseData {
+					flags: Some(MessageFlags::EPHEMERAL),
+					..Default::default()
+				})
 			})
 			.await?;
 
