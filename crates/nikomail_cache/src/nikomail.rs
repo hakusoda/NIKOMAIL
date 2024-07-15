@@ -1,9 +1,8 @@
 use dashmap::{
 	mapref::one::{ Ref, RefMut },
-	DashMap
+	DashMap, DashSet
 };
 use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel, ServerModel, UserStateModel };
-use std::collections::HashSet;
 use twilight_model::id::{
 	marker::{ ChannelMarker, GuildMarker, MessageMarker, UserMarker },
 	Id
@@ -14,11 +13,11 @@ use crate::Result;
 #[derive(Default)]
 pub struct NikomailCache {
 	pub relayed_messages: DashMap<u64, RelayedMessageModel>,
-	pub relayed_message_refs: DashMap<Id<MessageMarker>, u64>,
+	relayed_message_refs: DashMap<Id<MessageMarker>, u64>,
 	pub topics: DashMap<Id<ChannelMarker>, TopicModel>,
 	pub servers: DashMap<Id<GuildMarker>, ServerModel>,
 	pub user_states: DashMap<Id<UserMarker>, UserStateModel>,
-	pub user_topics: DashMap<Id<UserMarker>, HashSet<Id<ChannelMarker>>>
+	user_topics: DashMap<Id<UserMarker>, DashSet<Id<ChannelMarker>>>
 }
 
 impl NikomailCache {
@@ -34,10 +33,6 @@ impl NikomailCache {
 
 	pub fn topic(&self, thread_id: Id<ChannelMarker>) -> Option<Ref<'_, Id<ChannelMarker>, TopicModel>> {
 		self.topics.get(&thread_id)
-	}
-
-	pub fn topic_mut(&self, thread_id: Id<ChannelMarker>) -> Option<RefMut<Id<ChannelMarker>, TopicModel>> {
-		self.topics.get_mut(&thread_id)
 	}
 
 	pub async fn server(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, ServerModel>> {
@@ -98,7 +93,7 @@ impl NikomailCache {
 		)
 	}
 
-	pub async fn user_topics(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, HashSet<Id<ChannelMarker>>>> {
+	pub async fn user_topics(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, DashSet<Id<ChannelMarker>>>> {
 		Ok(match self.user_topics.get(&user_id) {
 			Some(model) => model,
 			None => {
@@ -122,13 +117,13 @@ impl NikomailCache {
 	}
 
 	pub fn add_user_topic(&self, user_id: Id<UserMarker>, thread_id: Id<ChannelMarker>) {
-		if let Some(mut user_topics) = self.user_topics.get_mut(&user_id) {
+		if let Some(user_topics) = self.user_topics.get(&user_id) {
 			user_topics.insert(thread_id);
 		}
 	}
 
 	pub fn remove_user_topic(&self, user_id: Id<UserMarker>, thread_id: Id<ChannelMarker>) {
-		if let Some(mut user_topics) = self.user_topics.get_mut(&user_id) {
+		if let Some(user_topics) = self.user_topics.get(&user_id) {
 			user_topics.remove(&thread_id);
 		}
 	}
