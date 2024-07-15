@@ -56,7 +56,7 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 								data: Some(
 									InteractionResponseDataBuilder::new()
 										.title("Create a new topic")
-										.custom_id("create_topic_modal")
+										.custom_id(format!("create_topic_modal_{guild_id}"))
 										.components([
 											ActionRow {
 												components: vec![TextInput {
@@ -123,8 +123,8 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 			}
 		} else if 
 			let InteractionData::ModalSubmit(modal_data) = data &&
-			modal_data.custom_id == "create_topic_modal" &&
-			let Some(guild_id) = interaction_create.guild_id &&
+			modal_data.custom_id.starts_with("create_topic_modal_") &&
+			let Some(guild_id) = modal_data.custom_id[19..].parse::<u64>().ok().and_then(Id::new_checked) &&
 			let Some(author_id) = interaction_create.author_id()
 		{
 			let server = CACHE
@@ -132,14 +132,16 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 				.server(guild_id)
 				.await?;
 			if server.blacklisted_user_ids.contains(&author_id) {
-				DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
-					kind: InteractionResponseType::ChannelMessageWithSource,
-					data: Some(InteractionResponseData {
-						flags: Some(MessageFlags::EPHEMERAL),
-						content: Some("i'm sorry, but you have been blacklisted from using NIKOMAIL in this server.".into()),
-						..Default::default()
+				DISCORD_INTERACTION_CLIENT
+					.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
+						kind: InteractionResponseType::ChannelMessageWithSource,
+						data: Some(InteractionResponseData {
+							flags: Some(MessageFlags::EPHEMERAL),
+							content: Some("i'm sorry, but you have been blacklisted from using NIKOMAIL in this server.".into()),
+							..Default::default()
+						})
 					})
-				}).await?;
+					.await?;
 			} else if let Some(forum_channel_id) = server.forum_channel_id {
 				let private_channel_id = CACHE
 					.discord

@@ -1,12 +1,10 @@
 use nikomail_cache::CACHE;
+use nikomail_commands::util::create_topic_button;
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
 use std::pin::Pin;
 use twilight_model::gateway::payload::incoming::{ ThreadCreate, ThreadUpdate, ThreadDelete };
 
-use crate::{
-	util::create_topic_button,
-	Result
-};
+use crate::Result;
 
 pub fn thread_create(thread_create: ThreadCreate) -> Result<()> {
 	CACHE.discord.channels.insert(thread_create.id, thread_create.into());
@@ -43,7 +41,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 				.await?;
 			DISCORD_CLIENT.create_message(private_channel_id)
 				.content(&format!("## Topic has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", channel_name.unwrap_or("Unknown Topic".into())))
-				.components(&[create_topic_button(Some(guild_id))])
+				.components(&[create_topic_button(Some(guild_id)).await?])
 				.await?;
 		}
 	}
@@ -75,7 +73,7 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 			.await?;
 		DISCORD_CLIENT.create_message(private_channel_id)
 			.content(&format!("## Topic has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))
-			.components(&[create_topic_button(Some(guild_id))])
+			.components(&[create_topic_button(Some(guild_id)).await?])
 			.await?;
 	}
 

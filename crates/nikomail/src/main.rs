@@ -18,7 +18,6 @@ use tracing_subscriber::FmtSubscriber;
 
 mod discord;
 mod error;
-mod util;
 
 pub use error::Result;
 

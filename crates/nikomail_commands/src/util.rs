@@ -54,27 +54,30 @@ pub async fn close_topic(interaction_id: Id<InteractionMarker>, interaction_toke
 		DISCORD_INTERACTION_CLIENT
 			.update_response(interaction_token)
 			.content(Some("The topic has been closed, it cannot be reopened, feel free to open another one!"))
-			.components(Some(&[create_topic_button(Some(guild_id))]))
+			.components(Some(&[create_topic_button(Some(guild_id)).await?]))
 			.await?;
 
 		true
 	} else { false })
 }
 
-pub fn create_topic_button(guild_id: Option<Id<GuildMarker>>) -> Component {
-	ActionRow {
+pub async fn create_topic_button(guild_id: Option<Id<GuildMarker>>) -> Result<Component> {
+	Ok(ActionRow {
 		components: vec![
 			Button {
 				url: None,
-				label: Some("Start new topic".into()),
+				label: Some(match guild_id {
+					Some(guild_id) => format!("Start new topic in {}", CACHE.discord.guild(guild_id).await?.name),
+					None => "Start new topic".into()
+				}),
 				emoji: Some(ReactionType::Custom { animated: false, id: Id::new(1219234152709095424), name: Some("dap_me_up".into()) }),
 				style: ButtonStyle::Primary,
 				disabled: false,
 				custom_id: Some(match guild_id {
-					Some(x) => format!("create_topic_{x}"),
+					Some(guild_id) => format!("create_topic_{guild_id}"),
 					None => "create_topic".into()
 				})
 			}.into()
 		]
-	}.into()
+	}.into())
 }

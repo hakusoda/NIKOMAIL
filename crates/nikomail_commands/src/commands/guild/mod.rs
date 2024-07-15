@@ -11,8 +11,9 @@ pub use configure::configure;
 #[tracing::instrument(skip_all)]
 #[command(slash, context = "guild", description = "Create a prewritten message with a topic creation button.", default_member_permissions = 8192)]
 pub async fn create_button(context: Context) -> Result<()> {
-	context.reply("## <:niko_smile:1226793977232097321>  NIKOMAIL (working title)\nThis server uses an anonymous mailing system, for one-on-one conversations with server staff, without revealing anyone's identities.\n\n### ❓  How does it work?\nWhen a user creates a topic, they will be redirected to directly message me, where I will act as an anonymous relay between you and server staff.\nAttachments and links are permitted, along with emojis **in this server**, and default stickers **provided by Discord**.\n\n<:personbadge:1219233857786875925> *Keeping your identity hidden is **your** responsibility, try avoiding use of personal CDNs and the like.*\n‼️ *Duly note that staff are able to (still-anonymously) blacklist you from using NIKOMAIL when deemed necessary.*\n\nWith all that out of the way, simply tap the button below to start mailing server staff!")
-		.components([create_topic_button(None)])
+	context
+		.reply("## <:niko_smile:1226793977232097321>  NIKOMAIL (working title)\nThis server uses an anonymous mailing system, for one-on-one conversations with server staff, without revealing anyone's identities.\n\n### ❓  How does it work?\nWhen a user creates a topic, they will be redirected to directly message me, where I will act as an anonymous relay between you and server staff.\nAttachments and links are permitted, along with emojis **in this server**, and default stickers **provided by Discord**.\n\n<:personbadge:1219233857786875925> *Keeping your identity hidden is **your** responsibility, try avoiding use of personal CDNs and the like.*\n‼️ *Duly note that staff are able to (still-anonymously) blacklist you from using NIKOMAIL when deemed necessary.*\n\nWith all that out of the way, simply tap the button below to start mailing server staff!")
+		.components([create_topic_button(None).await?])
 		.await
 }
 
