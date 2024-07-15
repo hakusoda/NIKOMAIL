@@ -1,5 +1,6 @@
 use nikomail_cache::CACHE;
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT };
+use std::pin::Pin;
 use twilight_model::gateway::payload::incoming::{ ThreadCreate, ThreadUpdate, ThreadDelete };
 
 use crate::{
@@ -21,7 +22,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 
 	let channel_name = channel.and_then(|x| x.name.clone());
 	if thread_update.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
-		if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
+		if let Some((_,topic)) = CACHE.nikomail.topics.remove(&thread_id) {
 			let author_id = topic.author_id;
 			let guild_id = topic.server_id;
 			CACHE.nikomail.remove_user_topic(author_id, thread_id);
@@ -34,7 +35,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 				",
 				thread_id.get() as i64
 			)
-				.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+				.execute(&*Pin::static_ref(&PG_POOL).await)
 				.await?;
 
 			let private_channel_id = CACHE.discord
@@ -53,7 +54,7 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 	let thread_id = thread_delete.id;
 	let channel = CACHE.discord.channels.remove(&thread_id);
-	if let Some(topic) = CACHE.nikomail.topic_mut(thread_id).await?.take() {
+	if let Some((_,topic)) = CACHE.nikomail.topics.remove(&thread_id) {
 		let author_id = topic.author_id;
 		let guild_id = topic.server_id;
 		CACHE.nikomail.remove_user_topic(author_id, thread_id);
@@ -66,7 +67,7 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 			",
 			thread_id.get() as i64
 		)
-			.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+			.execute(&*Pin::static_ref(&PG_POOL).await)
 			.await?;
 
 		let private_channel_id = CACHE.discord

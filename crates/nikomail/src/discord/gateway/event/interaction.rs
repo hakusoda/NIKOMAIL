@@ -173,14 +173,15 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
 					.await?;
 
-				CACHE.nikomail.topics.insert(thread_id, Some(TopicModel {
+				CACHE.nikomail.topics.insert(thread_id, TopicModel {
 					id: thread_id,
 					author_id,
 					server_id: guild_id
-				}));
+				});
 				CACHE.nikomail.add_user_topic(author_id, thread_id);
 
-				if let Ok(response) = DISCORD_CLIENT.create_message(private_channel_id)
+				if let Ok(response) = DISCORD_CLIENT
+					.create_message(private_channel_id)
 					.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nSwitch topics with </set_topic:{}>, close topics with </close_topic:{}>", app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap()))
 					.await
 				{

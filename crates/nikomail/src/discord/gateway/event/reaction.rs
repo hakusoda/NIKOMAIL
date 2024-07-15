@@ -11,8 +11,7 @@ use crate::Result;
 pub async fn reaction_add(reaction_add: ReactionAdd) -> Result<()> {
 	if
 		reaction_add.user_id.get() != DISCORD_APP_ID.get() &&
-		let Some(relayed_message_ref) = CACHE.nikomail.relayed_message_by_ref(reaction_add.message_id).await? &&
-		let Some(relayed_message) = relayed_message_ref.value() &&
+		let Some(relayed_message) = CACHE.nikomail.relayed_message_by_ref(reaction_add.message_id) &&
 		!relayed_message.is_topic_starter
 	{
 		let (channel_id, message_id) = relayed_message.message_other_ids(reaction_add.message_id);

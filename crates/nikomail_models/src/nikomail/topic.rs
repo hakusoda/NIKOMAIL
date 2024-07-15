@@ -48,6 +48,27 @@ impl TopicModel {
 		)
 	}
 
+	pub async fn get_all() -> Result<Vec<Self>> {
+		Ok(sqlx::query!(
+			"
+			SELECT id, author_id, server_id
+			FROM topics
+			"
+		)
+			.fetch(&*Pin::static_ref(&PG_POOL).await)
+			.try_fold(Vec::new(), |mut acc, record| {
+				acc.push(Self {
+					id: Id::new(record.id as u64),
+					author_id: Id::new(record.author_id as u64),
+					server_id: Id::new(record.server_id as u64)
+				});
+
+				async move { Ok(acc) }
+			})
+			.await?
+		)
+	}
+
 	pub async fn get_many_user(user_id: Id<UserMarker>) -> Result<Vec<Id<ChannelMarker>>> {
 		Ok(sqlx::query!(
 			"

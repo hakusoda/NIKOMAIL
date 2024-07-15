@@ -13,61 +13,31 @@ use crate::Result;
 
 #[derive(Default)]
 pub struct NikomailCache {
-	pub relayed_messages: DashMap<u64, Option<RelayedMessageModel>>,
+	pub relayed_messages: DashMap<u64, RelayedMessageModel>,
 	pub relayed_message_refs: DashMap<Id<MessageMarker>, u64>,
-	pub topics: DashMap<Id<ChannelMarker>, Option<TopicModel>>,
+	pub topics: DashMap<Id<ChannelMarker>, TopicModel>,
 	pub servers: DashMap<Id<GuildMarker>, ServerModel>,
 	pub user_states: DashMap<Id<UserMarker>, UserStateModel>,
 	pub user_topics: DashMap<Id<UserMarker>, HashSet<Id<ChannelMarker>>>
 }
 
 impl NikomailCache {
-	pub async fn relayed_message(&self, id: u64) -> Result<Ref<'_, u64, Option<RelayedMessageModel>>> {
-		Ok(match self.relayed_messages.get(&id) {
-			Some(model) => model,
-			None => {
-				let new_model = RelayedMessageModel::get(id)
-					.await?;
-				self.relayed_messages
-					.entry(id)
-					.insert(new_model)
-					.downgrade()
-			}
-		})
+	pub fn relayed_message(&self, id: u64) -> Option<Ref<'_, u64, RelayedMessageModel>> {
+		self.relayed_messages.get(&id)
 	}
 
-	pub async fn relayed_message_by_ref(&self, message_id: Id<MessageMarker>) -> Result<Option<Ref<'_, u64, Option<RelayedMessageModel>>>> {
-		Ok(if let Some(id) = self.relayed_message_refs.get(&message_id) {
-			Some(self.relayed_message(*id).await?)
-		} else { None })
+	pub fn relayed_message_by_ref(&self, message_id: Id<MessageMarker>) -> Option<Ref<'_, u64, RelayedMessageModel>> {
+		self.relayed_message_refs
+			.get(&message_id)
+			.and_then(|x| self.relayed_message(*x))
 	}
 
-	pub async fn topic(&self, thread_id: Id<ChannelMarker>) -> Result<Ref<'_, Id<ChannelMarker>, Option<TopicModel>>> {
-		Ok(match self.topics.get(&thread_id) {
-			Some(model) => model,
-			None => self
-				._insert_topic(thread_id)
-				.await?
-				.downgrade()
-		})
+	pub fn topic(&self, thread_id: Id<ChannelMarker>) -> Option<Ref<'_, Id<ChannelMarker>, TopicModel>> {
+		self.topics.get(&thread_id)
 	}
 
-	pub async fn topic_mut(&self, thread_id: Id<ChannelMarker>) -> Result<RefMut<Id<ChannelMarker>, Option<TopicModel>>> {
-		Ok(match self.topics.get_mut(&thread_id) {
-			Some(model) => model,
-			None => self
-				._insert_topic(thread_id)
-				.await?
-		})
-	}
-
-	async fn _insert_topic(&self, thread_id: Id<ChannelMarker>) -> Result<RefMut<Id<ChannelMarker>, Option<TopicModel>>> {
-		let new_model = TopicModel::get(thread_id)
-			.await?;
-		Ok(self.topics
-			.entry(thread_id)
-			.insert(new_model)
-		)
+	pub fn topic_mut(&self, thread_id: Id<ChannelMarker>) -> Option<RefMut<Id<ChannelMarker>, TopicModel>> {
+		self.topics.get_mut(&thread_id)
 	}
 
 	pub async fn server(&self, guild_id: Id<GuildMarker>) -> Result<Ref<'_, Id<GuildMarker>, ServerModel>> {
@@ -148,7 +118,7 @@ impl NikomailCache {
 		let id = relayed_message.id;
 		self.relayed_message_refs.insert(relayed_message.source_message_id, id);
 		self.relayed_message_refs.insert(relayed_message.relayed_message_id, id);
-		self.relayed_messages.insert(id, Some(relayed_message));
+		self.relayed_messages.insert(id, relayed_message);
 	}
 
 	pub fn add_user_topic(&self, user_id: Id<UserMarker>, thread_id: Id<ChannelMarker>) {

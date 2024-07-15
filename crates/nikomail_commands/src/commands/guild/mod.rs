@@ -20,7 +20,7 @@ pub async fn create_button(context: Context) -> Result<()> {
 #[command(slash, context = "guild", description = "Blacklist the current topic author from using NIKOMAIL.", default_member_permissions = 17179869184)]
 pub async fn blacklist_topic_author(context: Context) -> Result<()> {
 	context.reply({
-		if let Some(current_topic) = CACHE.nikomail.topic(context.channel_id().unwrap()).await?.value() {
+		if let Some(current_topic) = CACHE.nikomail.topic(context.channel_id().unwrap()) {
 			let author_id = current_topic.author_id;
 			let guild_id = context.guild_id().unwrap();
 			let mut server = CACHE

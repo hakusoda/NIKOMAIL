@@ -1,6 +1,7 @@
 use nikomail_cache::CACHE;
 use nikomail_commands_core::Result;
 use nikomail_util::{ DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT, PG_POOL };
+use std::pin::Pin;
 use twilight_model::{
 	channel::message::{
 		component::{ Button, ActionRow, ButtonStyle, Component },
@@ -14,7 +15,7 @@ use twilight_model::{
 };
 
 pub async fn close_topic(interaction_id: Id<InteractionMarker>, interaction_token: &str, topic_id: Id<ChannelMarker>) -> Result<bool> {
-	Ok(if let Some(topic) = CACHE.nikomail.topic_mut(topic_id).await?.take() {
+	Ok(if let Some((_,topic)) = CACHE.nikomail.topics.remove(&topic_id) {
 		let author_id = topic.author_id;
 		let guild_id = topic.server_id;
 		DISCORD_INTERACTION_CLIENT
@@ -31,17 +32,19 @@ pub async fn close_topic(interaction_id: Id<InteractionMarker>, interaction_toke
 			",
 			topic_id.get() as i64
 		)
-			.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+			.execute(&*Pin::static_ref(&PG_POOL).await)
 			.await?;
 
 		let mut user_state = CACHE.nikomail.user_state_mut(author_id).await?;
 		user_state.current_topic_id = None;
 
-		DISCORD_CLIENT.create_message(topic_id)
+		DISCORD_CLIENT
+			.create_message(topic_id)
 			.content("# Topic has been closed\nThe author of this topic has closed the topic, it cannot be reopened.\nMessages past this point will not be sent, feel free to delete this thread if necessary.")
 			.await?;
 
-		DISCORD_CLIENT.update_thread(topic_id)
+		DISCORD_CLIENT
+			.update_thread(topic_id)
 			.locked(true)
 			.archived(true)
 			.await?;

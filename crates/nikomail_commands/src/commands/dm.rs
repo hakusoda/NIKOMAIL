@@ -97,7 +97,7 @@ pub async fn set_topic(
 ) -> Result<()> {
 	if let Ok(int) = topic.parse::<u64>() {
 		if let Some(topic_id) = Id::new_checked(int) {
-			if CACHE.nikomail.topic(topic_id).await?.is_some() {
+			if CACHE.nikomail.topics.contains_key(&topic_id) {
 				let mut user_state = CACHE.nikomail.user_state_mut(context.author_id().unwrap()).await?;
 				user_state.current_topic_id.replace(topic_id);
 

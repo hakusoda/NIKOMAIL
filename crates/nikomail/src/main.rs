@@ -7,7 +7,7 @@ use once_cell::sync::Lazy;
 use nikomail_cache::CACHE;
 use nikomail_commands::commands::COMMANDS;
 use nikomail_commands_core::command::{ Command, CommandContext, CommandOption, CommandOptionKind };
-use nikomail_models::nikomail::RelayedMessageModel;
+use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel };
 use nikomail_util::{ DISCORD_APP_ID, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT, PG_POOL };
 use twilight_model::{
 	guild::Permissions,
@@ -109,11 +109,22 @@ async fn main() {
 		Lazy::force(&DISCORD_INTERACTION_CLIENT); // also evaluates DISCORD_CLIENT & DISCORD_APP_ID
 		Pin::static_ref(&discord::DISCORD_APP_COMMANDS).await;
 
-		let relayed_messages = RelayedMessageModel::get_all().await.unwrap();
+		let relayed_messages = RelayedMessageModel::get_all()
+			.await
+			.unwrap();
 		info!("fetched {} relayed messages", relayed_messages.len());
 
 		for relayed_message in relayed_messages {
 			CACHE.nikomail.add_relayed_message(relayed_message);
+		}
+
+		let topics = TopicModel::get_all()
+			.await
+			.unwrap();
+		info!("fetched {} topics", topics.len());
+
+		for topic in topics {
+			CACHE.nikomail.topics.insert(topic.id, topic);
 		}
 
 		let message_sender = discord::gateway::initialise();
