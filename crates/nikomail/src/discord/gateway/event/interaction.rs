@@ -179,6 +179,11 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					server_id: guild_id
 				});
 				CACHE.nikomail.add_user_topic(author_id, thread_id);
+				CACHE.nikomail
+					.user_state_mut(author_id)
+					.await?
+					.current_topic_id
+					.replace(new_thread.channel.id);
 
 				if let Ok(response) = DISCORD_CLIENT
 					.create_message(private_channel_id)
@@ -196,25 +201,28 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 						true
 					).await?;
 					CACHE.nikomail.add_relayed_message(relayed_message);
-					CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id.replace(new_thread.channel.id);
 					
-					DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
-						kind: InteractionResponseType::ChannelMessageWithSource,
-						data: Some(InteractionResponseData {
-							flags: Some(MessageFlags::EPHEMERAL),
-							content: Some(format!("Topic has been created, refer to <#{}>", private_channel_id)),
-							..Default::default()
+					DISCORD_INTERACTION_CLIENT
+						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
+							kind: InteractionResponseType::ChannelMessageWithSource,
+							data: Some(InteractionResponseData {
+								flags: Some(MessageFlags::EPHEMERAL),
+								content: Some(format!("Topic has been created, refer to <#{}>", private_channel_id)),
+								..Default::default()
+							})
 						})
-					}).await?;
+						.await?;
 				} else {
-					DISCORD_INTERACTION_CLIENT.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
-						kind: InteractionResponseType::ChannelMessageWithSource,
-						data: Some(InteractionResponseData {
-							flags: Some(MessageFlags::EPHEMERAL),
-							content: Some(format!("Topic has been created, but I'm unable to directly message you, check your privacy settings, and then execute </set_topic:1245261841974820915> in <#{}>", private_channel_id)),
-							..Default::default()
+					DISCORD_INTERACTION_CLIENT
+						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
+							kind: InteractionResponseType::ChannelMessageWithSource,
+							data: Some(InteractionResponseData {
+								flags: Some(MessageFlags::EPHEMERAL),
+								content: Some(format!("Topic has been created, but I'm unable to directly message you, check your privacy settings, and then execute </set_topic:1245261841974820915> in <#{}>", private_channel_id)),
+								..Default::default()
+							})
 						})
-					}).await?;
+						.await?;
 				}
 
 				return Ok(());
