@@ -42,11 +42,51 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 				copy_message_and_send(message_create, topic_id, topic_id)
 					.await?;
 			} else {
-				DISCORD_CLIENT
+				let builder = DISCORD_CLIENT
 					.create_message(message_create.channel_id)
-					.content("You must set the topic you'd like to respond to using </set_topic:1245261841974820915>")
-					.reply(message_create.id)
+					.reply(message_create.id);
+
+				let author_id = message_create.author.id;
+				let user_topics = CACHE
+					.nikomail
+					.user_topics(author_id)
 					.await?;
+				if
+					let Some(thread_id) = user_topics.iter().next().map(|x| *x) &&
+					let Some(topic) = CACHE.nikomail.topic(thread_id)
+				{
+					// temporary since users can only have one topic open
+					let guild_id = topic.server_id;
+					CACHE
+						.nikomail
+						.user_state_mut(author_id)
+						.await?
+						.current_topic_id
+						.replace(thread_id);
+					copy_message_and_send(message_create, thread_id, thread_id)
+						.await?;
+
+					let channel_name = CACHE
+						.discord
+						.channel(thread_id)
+						.await?
+						.name
+						.clone()
+						.unwrap_or("Unknown".into());
+					let guild = CACHE
+						.discord
+						.guild(guild_id)
+						.await?;
+
+					
+					builder
+						.content(&format!("Automatically set the current topic to **{channel_name}** in **{}** (you had no topic set), don't worry; your message has been relayed.", guild.name))
+						.await?;
+				} else {
+					builder
+						.content("You don't have any topics open at the moment, so your message hasn't been relayed.")
+						.await?;
+				};
 			}
 		}
 	}

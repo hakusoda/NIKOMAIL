@@ -6,7 +6,7 @@ use twilight_model::{
 	id::Id
 };
 
-use crate::util;
+use crate::util::CloseTopicOperation;
 
 async fn autocomplete_topic<'a>(context: Context, partial: String) -> Result<Vec<CommandOptionChoice>> {
 	let user_topics = CACHE.nikomail.user_topics(context.author_id().unwrap()).await?;
@@ -38,7 +38,10 @@ pub async fn close_topic(
 		Some(x) => x.parse::<u64>().ok().and_then(Id::new_checked),
 		None => CACHE.nikomail.user_state(author_id).await?.current_topic_id
 	};
-	if let Some(topic_id) = topic_id && util::close_topic(context.interaction.id, &context.interaction.token, topic_id).await? {
+	if let Some(topic_id) = topic_id {
+		CloseTopicOperation::Author(context.interaction.id, &context.interaction.token)
+			.execute(topic_id)
+			.await?;
 		return Ok(());
 	}
 

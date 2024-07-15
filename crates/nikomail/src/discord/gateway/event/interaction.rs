@@ -1,3 +1,4 @@
+use nikomail_commands::util::CloseTopicOperation;
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
 use twilight_util::builder::InteractionResponseDataBuilder;
 use twilight_model::{
@@ -118,7 +119,8 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					.first()
 					.and_then(|x| x.parse::<u64>().ok().and_then(Id::new_checked))
 			{
-				nikomail_commands::util::close_topic(interaction_create.id, &interaction_create.token, topic_id)
+				CloseTopicOperation::Author(interaction_create.id, &interaction_create.token)
+					.execute(topic_id)
 					.await?;
 			}
 		} else if 
@@ -187,11 +189,33 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					.current_topic_id
 					.replace(new_thread.channel.id);
 
-				if let Ok(response) = DISCORD_CLIENT
-					.create_message(private_channel_id)
-					.content(&format!("## Topic has been created\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nSwitch topics with </set_topic:{}>, close topics with </close_topic:{}>", app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap()))
-					.await
-				{
+				let guild = CACHE
+					.discord
+					.guild(guild_id)
+					.await?;
+				let message_content = format!("## Started new topic in {}\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nYou can switch topics using </set_topic:{}>, and close this topic using </close_topic:{}>", guild.name, app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap());
+				let message_result = if interaction_create.is_dm() {
+					if let Err(error) = DISCORD_INTERACTION_CLIENT
+						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
+							kind: InteractionResponseType::ChannelMessageWithSource,
+							data: Some(InteractionResponseData {
+								content: Some(message_content),
+								..Default::default()
+							})
+						})
+						.await
+					{ Err(error) } else {
+						DISCORD_INTERACTION_CLIENT
+							.response(&interaction_create.token)
+							.await
+					}
+				} else {
+					DISCORD_CLIENT
+						.create_message(private_channel_id)
+						.content(&message_content)
+						.await
+				};
+				if let Ok(response) = message_result {
 					let message = response.model().await?;
 					let relayed_message = RelayedMessageModel::insert(
 						author_id,
@@ -204,16 +228,18 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					).await?;
 					CACHE.nikomail.add_relayed_message(relayed_message);
 					
-					DISCORD_INTERACTION_CLIENT
-						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
-							kind: InteractionResponseType::ChannelMessageWithSource,
-							data: Some(InteractionResponseData {
-								flags: Some(MessageFlags::EPHEMERAL),
-								content: Some(format!("Topic has been created, refer to <#{}>", private_channel_id)),
-								..Default::default()
+					if interaction_create.is_guild() {
+						DISCORD_INTERACTION_CLIENT
+							.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
+								kind: InteractionResponseType::ChannelMessageWithSource,
+								data: Some(InteractionResponseData {
+									flags: Some(MessageFlags::EPHEMERAL),
+									content: Some(format!("## Started {topic_name}\nCheck <#{}> for more details, you will also receive a response there.", private_channel_id)),
+									..Default::default()
+								})
 							})
-						})
-						.await?;
+							.await?;
+					}
 				} else {
 					DISCORD_INTERACTION_CLIENT
 						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
