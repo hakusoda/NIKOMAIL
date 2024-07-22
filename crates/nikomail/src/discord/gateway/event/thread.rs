@@ -16,7 +16,6 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 		channel.update_from_thread(&thread_update);
 	}
 
-	let channel_name = channel.and_then(|x| x.name.clone());
 	if thread_update.thread_metadata.as_ref().is_some_and(|x| x.locked || x.archived) {
 		CloseTopicOperation::Generic
 			.execute(thread_id)
