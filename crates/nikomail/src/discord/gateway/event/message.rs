@@ -93,13 +93,13 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 }
 
 pub async fn message_update(message_update: MessageUpdate) -> Result<()> {
-	if let Some(relayed_message) = CACHE.nikomail.relayed_message_by_ref(message_update.id) {
-		let (channel_id, message_id) = relayed_message.message_other_ids(message_update.id);
-		let builder = DISCORD_CLIENT.update_message(channel_id, message_id)
+	let message_id = message_update.id;
+	if let Some(relayed_message) = CACHE.nikomail.relayed_message_by_ref(message_id) {
+		let (other_channel_id, other_message_id) = relayed_message.message_other_ids(message_id);
+		DISCORD_CLIENT.update_message(other_channel_id, other_message_id)
 			.embeds(message_update.embeds.as_deref())
-			.content(message_update.content.as_deref());
-
-		builder.await?;
+			.content(message_update.content.as_deref())
+			.await?;
 	}
 	Ok(())
 }
