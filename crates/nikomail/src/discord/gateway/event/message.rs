@@ -17,12 +17,11 @@ use crate::Result;
 pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 	if !message_create.author.bot {
 		if message_create.guild_id.is_some() {
-			let channel = CACHE
-				.discord
-				.channel(message_create.channel_id)
-				.await?;
-			if channel.kind.is_thread() && let Some(topic) = CACHE.nikomail.topic(channel.id) {
-				let private_channel_id = CACHE.discord.private_channel(topic.author_id).await?;
+			if let Some(topic) = CACHE.nikomail.topic(message_create.id) {
+				let private_channel_id = CACHE
+					.discord
+					.private_channel(topic.author_id)
+					.await?;
 				copy_message_and_send(message_create, private_channel_id, channel.id)
 					.await?;
 			}
