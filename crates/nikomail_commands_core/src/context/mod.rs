@@ -57,16 +57,6 @@ impl Context {
 	}
 
 	pub fn reply(&self, content: impl Into<String>) -> ReplyBuilder {
-		/*let mut builder = InteractionResponseDataBuilder::new()
-			.content(text);
-		if ephemeral {
-			builder = builder.flags(MessageFlags::EPHEMERAL);
-		}
-
-		self.response(InteractionResponse {
-			kind: InteractionResponseType::ChannelMessageWithSource,
-			data: Some(builder.build())
-		}).await*/
 		ReplyBuilder::new(self, content)
 	}
 

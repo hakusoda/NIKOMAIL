@@ -20,36 +20,6 @@ pub async fn thread_update(thread_update: ThreadUpdate) -> Result<()> {
 		CloseTopicOperation::Generic
 			.execute(thread_id)
 			.await?;
-		/*if let Some((_,topic)) = CACHE.nikomail.topics.remove(&thread_id) {
-			let author_id = topic.author_id;
-			let guild_id = topic.server_id;
-			CACHE.nikomail.remove_user_topic(author_id, thread_id);
-			CACHE.nikomail.user_state_mut(author_id).await?.current_topic_id = None;
-
-			sqlx::query!(
-				"
-				DELETE from topics
-				WHERE id = $1
-				",
-				thread_id.get() as i64
-			)
-				.execute(&*Pin::static_ref(&PG_POOL).await)
-				.await?;
-
-			let private_channel_id = CACHE
-				.discord
-				.private_channel(author_id)
-				.await?;
-			let guild = CACHE
-				.discord
-				.guild(guild_id)
-				.await?;
-			DISCORD_CLIENT
-				.create_message(private_channel_id)
-				.content(&format!("## Your topic in {} has been closed\n**{}** has been closed by server staff, it cannot be reopened, feel free to open another one!", guild.name, channel_name.unwrap_or("Unknown Topic".into())))
-				.components(&[create_topic_button(Some(guild_id)).await?])
-				.await?;
-		}*/
 	}
 
 	Ok(())
@@ -61,41 +31,6 @@ pub async fn thread_delete(thread_delete: ThreadDelete) -> Result<()> {
 	CloseTopicOperation::Deleted(channel.and_then(|x| x.1.name))
 		.execute(thread_id)
 		.await?;
-	/*if let Some((_,topic)) = CACHE.nikomail.topics.remove(&thread_id) {
-		let author_id = topic.author_id;
-		let guild_id = topic.server_id;
-		CACHE
-			.nikomail
-			.remove_user_topic(author_id, thread_id);
-		CACHE
-			.nikomail
-			.user_state_mut(author_id)
-			.await?
-			.current_topic_id = None;
-
-		sqlx::query!(
-			"
-			DELETE from topics
-			WHERE id = $1
-			",
-			thread_id.get() as i64
-		)
-			.execute(&*Pin::static_ref(&PG_POOL).await)
-			.await?;
-
-		let private_channel_id = CACHE
-			.discord
-			.private_channel(author_id)
-			.await?;
-		let guild = CACHE
-			.discord
-			.guild(guild_id)
-			.await?;
-		DISCORD_CLIENT.create_message(private_channel_id)
-			.content(&format!("## Your topic in {} has been closed\n**{}** has been closed & deleted by server staff, feel free to open another one!", channel.and_then(|x| x.1.name).unwrap_or("Unknown Topic".into())))
-			.components(&[create_topic_button(Some(guild_id)).await?])
-			.await?;
-	}*/
 
 	Ok(())
 }

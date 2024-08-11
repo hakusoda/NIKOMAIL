@@ -34,15 +34,4 @@ impl Interaction {
 			_ => vec![]
 		}
 	}
-	/*pub async fn user(&self) -> Result<Option<Ref<'_, Id<UserMarker>, CachedUser>>> {
-		Ok(if let Some(user_id) = self.user_id {
-			Some(DISCORD_MODELS.user(user_id).await?)
-		} else { None })
-	}*/
-
-	/*pub async fn member(&self) -> Result<Option<Ref<'static, (Id<GuildMarker>, Id<UserMarker>), CachedMember>>> {
-		Ok(if let Some(user_id) = self.user_id && let Some(guild_id) = self.guild_id {
-			Some(CACHE.discord.member(guild_id, user_id).await?)
-		} else { None })
-	}*/
 }
