@@ -9,6 +9,9 @@ pub enum Error {
 	#[error("Command Core: {0}")]
 	CommandCore(#[from] nikomail_commands_core::CoreError),
 
+	#[error("Format: {0}")]
+	Format(#[from] std::fmt::Error),
+
 	#[error("Model: {0}")]
 	Model(#[from] nikomail_models::Error),
 

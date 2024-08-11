@@ -189,11 +189,22 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					.current_topic_id
 					.replace(new_thread.channel.id);
 
-				let guild = CACHE
-					.discord
-					.guild(guild_id)
-					.await?;
-				let message_content = format!("## Started new topic in {}\n**{topic_name}** has been created, server staff will get back to you shortly.\nMessages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\nYou can switch topics using </set_topic:{}>, and close this topic using </close_topic:{}>", guild.name, app_command_id("set_topic").await.unwrap(), app_command_id("close_topic").await.unwrap());
+				let message_content = {
+					let guild = CACHE
+						.discord
+						.guild(guild_id)
+						.await?;
+					format!("
+						## Started new topic in {}\n**{topic_name}** has been created, server staff will get back to you shortly.\n\
+						Messages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\
+						\n\
+						You can switch topics using </set_topic:{}>, and close this topic using </close_topic:{}>
+						",
+						guild.name,
+						app_command_id("set_topic").await.unwrap(),
+						app_command_id("close_topic").await.unwrap()
+					)
+				};
 				let message_result = if interaction_create.is_dm() {
 					if let Err(error) = DISCORD_INTERACTION_CLIENT
 						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {
@@ -234,7 +245,10 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 								kind: InteractionResponseType::ChannelMessageWithSource,
 								data: Some(InteractionResponseData {
 									flags: Some(MessageFlags::EPHEMERAL),
-									content: Some(format!("## Started {topic_name}\nCheck <#{}> for more details, you will also receive a response there.", private_channel_id)),
+									content: Some(format!("
+										## Started {topic_name}\n\
+										Check <#{}> for more details, you will also receive a response there.
+									", private_channel_id)),
 									..Default::default()
 								})
 							})

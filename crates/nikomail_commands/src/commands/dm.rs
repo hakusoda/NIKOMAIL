@@ -45,7 +45,7 @@ pub async fn close_topic(
 		return Ok(());
 	}
 
-	let user_topics = CACHE.nikomail
+	let user_topics: Vec<_> = CACHE.nikomail
 		.user_topics(author_id)
 		.await?;
 	if !user_topics.is_empty() {

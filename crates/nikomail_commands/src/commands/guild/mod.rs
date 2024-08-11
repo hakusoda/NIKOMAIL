@@ -24,17 +24,19 @@ pub async fn blacklist_topic_author(context: Context) -> Result<()> {
 		if let Some(current_topic) = CACHE.nikomail.topic(context.channel_id().unwrap()) {
 			let author_id = current_topic.author_id;
 			let guild_id = context.guild_id().unwrap();
-			let mut server = CACHE
-				.nikomail
-				.server_mut(guild_id)
-				.await?;
-			server.blacklisted_user_ids.push(author_id);
-			
-			let user_ids = server
-				.blacklisted_user_ids
-				.iter()
-				.map(|x| x.get() as i64)
-				.collect::<Vec<i64>>();
+			let user_ids = {
+				let mut server = CACHE
+					.nikomail
+					.server_mut(guild_id)
+					.await?;
+				server.blacklisted_user_ids.push(author_id);
+				
+				server
+					.blacklisted_user_ids
+					.iter()
+					.map(|x| x.get() as i64)
+					.collect::<Vec<i64>>()
+			};
 			sqlx::query!(
 				"
 				UPDATE servers
@@ -51,13 +53,16 @@ pub async fn blacklist_topic_author(context: Context) -> Result<()> {
 				.discord
 				.private_channel(author_id)
 				.await?;
-			let guild = CACHE
-				.discord
-				.guild(guild_id)
-				.await?;
+			let content = {
+				let guild = CACHE
+					.discord
+					.guild(guild_id)
+					.await?;
+				format!("## You have been blacklisted in {}\nUnfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.", guild.name)
+			};
 			DISCORD_CLIENT
 				.create_message(private_channel_id)
-				.content(&format!("## You have been blacklisted in {}\nUnfortunately, server staff have decided to blacklist you from using NIKOMAIL, you will no longer be able to create new topics.", guild.name))
+				.content(&content)
 				.await?;
 
 			"success! the author of this topic has been blacklisted from using NIKOMAIL.\n*they will still be able to talk in this topic until you delete the thread, sorry i was crunched for time on this part...*"

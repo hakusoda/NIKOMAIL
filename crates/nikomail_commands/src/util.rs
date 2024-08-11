@@ -79,15 +79,18 @@ impl<'a> CloseTopicOperation<'a> {
 					.discord
 					.private_channel(author_id)
 					.await?;
-				let channel_name = self
-					.channel_name(topic_id)
-					.await?;
-				let guild = CACHE
-					.discord
-					.guild(guild_id)
-					.await?;
+				let content = {
+					let channel_name = self
+						.channel_name(topic_id)
+						.await?;
+					let guild = CACHE
+						.discord
+						.guild(guild_id)
+						.await?;
+					format!("## Your topic in {} has been closed\n**{channel_name}** has been closed by server staff, feel free to open another one!", guild.name)
+				};
 				DISCORD_CLIENT.create_message(private_channel_id)
-					.content(&format!("## Your topic in {} has been closed\n**{channel_name}** has been closed by server staff, feel free to open another one!", guild.name))
+					.content(&content)
 					.components(&[create_topic_button(Some(guild_id)).await?])
 					.await?;
 			}

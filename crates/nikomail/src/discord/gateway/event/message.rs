@@ -1,6 +1,7 @@
 use nikomail_cache::CACHE;
 use nikomail_models::nikomail::RelayedMessageModel;
 use nikomail_util::DISCORD_CLIENT;
+use std::fmt::Write;
 use tokio::time::{ Duration, sleep };
 use twilight_http::request::channel::reaction::RequestReactionType;
 use twilight_model::{
@@ -47,16 +48,20 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 					.reply(message_create.id);
 
 				let author_id = message_create.author.id;
-				let user_topics = CACHE
+				let thread_id = CACHE
 					.nikomail
 					.user_topics(author_id)
-					.await?;
+					.await?
+					.into_iter()
+					.next();
 				if
-					let Some(thread_id) = user_topics.iter().next().map(|x| *x) &&
+					let Some(thread_id) = thread_id &&
 					let Some(topic) = CACHE.nikomail.topic(thread_id)
 				{
 					// temporary since users can only have one topic open
 					let guild_id = topic.server_id;
+					drop(topic);
+
 					CACHE
 						.nikomail
 						.user_state_mut(author_id)
@@ -66,21 +71,30 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 					copy_message_and_send(message_create, thread_id, thread_id)
 						.await?;
 
-					let channel_name = CACHE
-						.discord
-						.channel(thread_id)
-						.await?
-						.name
-						.clone()
-						.unwrap_or("Unknown".into());
-					let guild = CACHE
-						.discord
-						.guild(guild_id)
-						.await?;
+					let content = {
+						let channel = CACHE
+							.discord
+							.channel(thread_id)
+							.await?;
+						let mut content = "Automatically set the current topic to **".to_string();
+						if let Some(channel_name) = &channel.name {
+							content.write_str(channel_name)?;
+						} else {
+							content.write_str("Unknown")?;
+						}
+						drop(channel);
+						
+						let guild = CACHE
+							.discord
+							.guild(guild_id)
+							.await?;
+						write!(&mut content, "** in **{}** (you had no topic set), don't worry; your message has been relayed.", guild.name)?;
 
+						content
+					};
 					
 					builder
-						.content(&format!("Automatically set the current topic to **{channel_name}** in **{}** (you had no topic set), don't worry; your message has been relayed.", guild.name))
+						.content(&content)
 						.await?;
 				} else {
 					builder

@@ -93,18 +93,21 @@ impl NikomailCache {
 		)
 	}
 
-	pub async fn user_topics(&self, user_id: Id<UserMarker>) -> Result<Ref<'_, Id<UserMarker>, DashSet<Id<ChannelMarker>>>> {
+	pub async fn user_topics(&self, user_id: Id<UserMarker>) -> Result<Vec<Id<ChannelMarker>>> {
 		Ok(match self.user_topics.get(&user_id) {
-			Some(model) => model,
+			Some(model) => model
+				.iter()
+				.map(|x| *x)
+				.collect(),
 			None => {
 				let new_model_ids = TopicModel::get_many_user(user_id)
 					.await?;
-				let mut model = self.user_topics
+				self.user_topics
 					.entry(user_id)
-					.or_default();
-				model.extend(new_model_ids.into_iter());
+					.or_default()
+					.extend(new_model_ids.iter().copied());
 
-				model.downgrade()
+				new_model_ids
 			}
 		})
 	}
