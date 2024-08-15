@@ -71,27 +71,23 @@ pub async fn message_create(message_create: MessageCreate) -> Result<()> {
 					copy_message_and_send(message_create, thread_id, thread_id)
 						.await?;
 
-					let content = {
-						let channel = CACHE
+					let mut content = format!("Automatically set the current topic to **{}",
+						CACHE
 							.discord
 							.channel(thread_id)
-							.await?;
-						let mut content = "Automatically set the current topic to **".to_string();
-						if let Some(channel_name) = &channel.name {
-							content.write_str(channel_name)?;
-						} else {
-							content.write_str("Unknown")?;
-						}
-						drop(channel);
-						
-						let guild = CACHE
+							.await?
+							.name
+							.as_deref()
+							.unwrap_or("Unknown")
+					);
+					write!(&mut content,
+						"** in **{}** (you had no topic set), don't worry; your message has been relayed.",
+						CACHE
 							.discord
 							.guild(guild_id)
-							.await?;
-						write!(&mut content, "** in **{}** (you had no topic set), don't worry; your message has been relayed.", guild.name)?;
-
-						content
-					};
+							.await?
+							.name
+					)?;
 					
 					builder
 						.content(&content)

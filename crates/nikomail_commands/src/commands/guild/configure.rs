@@ -1,6 +1,7 @@
 use nikomail_cache::CACHE;
 use nikomail_commands_core::{ Context, Result, command };
 use nikomail_util::PG_POOL;
+use std::pin::Pin;
 use twilight_model::id::{ marker::ChannelMarker, Id };
 
 #[tracing::instrument(skip_all)]
@@ -28,7 +29,7 @@ pub async fn forum_channel(
 		guild_id.get() as i64,
 		new_channel.get() as i64
 	)
-		.execute(&*std::pin::Pin::static_ref(&PG_POOL).await)
+		.execute(&*Pin::static_ref(&PG_POOL).await)
 		.await?;
 
 	if let Some(mut server) = CACHE.nikomail.servers.get_mut(&guild_id) {

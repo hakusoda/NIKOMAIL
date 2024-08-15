@@ -92,14 +92,17 @@ async fn main() {
 			}
 		}
 
-		DISCORD_CLIENT.request::<()>(
-			twilight_http::request::Request::builder(&twilight_http::routing::Route::SetGlobalCommands {
-				application_id: DISCORD_APP_ID.get()
-			})
-				.json(&commands)
-				.build()
-				.unwrap()
-		).await.unwrap();
+		DISCORD_CLIENT
+			.request::<()>(
+				twilight_http::request::Request::builder(&twilight_http::routing::Route::SetGlobalCommands {
+					application_id: DISCORD_APP_ID.get()
+				})
+					.json(&commands)
+					.build()
+					.unwrap()
+			)
+			.await
+			.unwrap();
 
 		info!("successfully updated global commands");
 	} else {
@@ -133,7 +136,11 @@ async fn main() {
 		
 		message_sender.close(CloseFrame::NORMAL).unwrap();
 
-		let mut transaction = Pin::static_ref(&PG_POOL).await.begin().await.unwrap();
+		let mut transaction = Pin::static_ref(&PG_POOL)
+			.await
+			.begin()
+			.await
+			.unwrap();
 		for user_state in CACHE.nikomail.user_states.iter() {
 			sqlx::query!(
 				"
@@ -150,7 +157,10 @@ async fn main() {
 				.unwrap();
 		}
 
-		transaction.commit().await.unwrap();
+		transaction
+			.commit()
+			.await
+			.unwrap();
 		info!("saved {} user states, now shutting down...", CACHE.nikomail.user_states.len());
 	}
 }

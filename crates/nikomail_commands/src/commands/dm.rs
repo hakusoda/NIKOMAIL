@@ -45,25 +45,36 @@ pub async fn close_topic(
 		return Ok(());
 	}
 
-	let user_topics: Vec<_> = CACHE.nikomail
+	let user_topics: Vec<_> = CACHE
+		.nikomail
 		.user_topics(author_id)
 		.await?;
 	if !user_topics.is_empty() {
 		let mut options: Vec<SelectMenuOption> = Vec::new();
-		for topic_id in user_topics.iter() {
-			let channel = CACHE.discord
-				.channel(*topic_id)
-				.await?;
-			let label = channel.name.clone().unwrap_or_else(|| "Unknown".into());
-			let guild = CACHE.discord
-				.guild(channel.guild_id.unwrap())
-				.await?;
+		for thread_id in user_topics.iter().copied() {
 			options.push(SelectMenuOption {
 				default: false,
-				description: Some(format!("in {}", guild.name)),
+				description: Some({
+					let guild_id = CACHE
+						.nikomail
+						.topic(thread_id)
+						.unwrap()
+						.server_id;
+					let guild = CACHE
+						.discord
+						.guild(guild_id)
+						.await?;
+					format!("in {}", guild.name)
+				}),
 				emoji: None,
-				label,
-				value: topic_id.to_string()
+				label: CACHE
+					.discord
+					.channel(thread_id)
+					.await?
+					.name
+					.clone()
+					.unwrap_or_else(|| "Unknown".to_string()),
+				value: thread_id.to_string()
 			});
 		}
 
@@ -101,8 +112,12 @@ pub async fn set_topic(
 	if let Ok(int) = topic.parse::<u64>() {
 		if let Some(topic_id) = Id::new_checked(int) {
 			if CACHE.nikomail.topics.contains_key(&topic_id) {
-				let mut user_state = CACHE.nikomail.user_state_mut(context.author_id().unwrap()).await?;
-				user_state.current_topic_id.replace(topic_id);
+				CACHE
+					.nikomail
+					.user_state_mut(context.author_id().unwrap())
+					.await?
+					.current_topic_id
+					.replace(topic_id);
 
 				return context.reply("success, start talking!")
 					.ephemeral()

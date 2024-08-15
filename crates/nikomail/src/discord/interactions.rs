@@ -65,13 +65,15 @@ async fn parse_interaction(context: Context) -> Result<()> {
 					.find(|x| x.name == option.name)
 					.unwrap();
 				let choices = command_option.autocomplete.unwrap()(context, partial).await?;
-				DISCORD_INTERACTION_CLIENT.create_response(interaction_id, &interaction_token, &InteractionResponse {
-					kind: InteractionResponseType::ApplicationCommandAutocompleteResult,
-					data: Some(InteractionResponseData {
-						choices: Some(choices),
-						..Default::default()
+				DISCORD_INTERACTION_CLIENT
+					.create_response(interaction_id, &interaction_token, &InteractionResponse {
+						kind: InteractionResponseType::ApplicationCommandAutocompleteResult,
+						data: Some(InteractionResponseData {
+							choices: Some(choices),
+							..Default::default()
+						})
 					})
-				}).await?;
+					.await?;
 
 				return Ok(());
 			}

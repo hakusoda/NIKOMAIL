@@ -1,5 +1,7 @@
 use nikomail_commands::util::CloseTopicOperation;
+use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel };
 use nikomail_util::{ PG_POOL, DISCORD_CLIENT, DISCORD_INTERACTION_CLIENT };
+use std::fmt::Write;
 use twilight_util::builder::InteractionResponseDataBuilder;
 use twilight_model::{
 	id::Id,
@@ -14,7 +16,6 @@ use twilight_model::{
 	gateway::payload::incoming::InteractionCreate,
 	application::interaction::InteractionData
 };
-use nikomail_models::nikomail::{ RelayedMessageModel, TopicModel };
 
 use crate::{
 	discord::{ interactions::handle_interaction, app_command_id },
@@ -189,22 +190,24 @@ pub async fn interaction_create(interaction_create: InteractionCreate) -> Result
 					.current_topic_id
 					.replace(new_thread.channel.id);
 
-				let message_content = {
-					let guild = CACHE
+				let mut message_content = String::new();
+				writeln!(&mut message_content,
+					"
+					## Started new topic in {}\n**{topic_name}** has been created, server staff will get back to you shortly.\n\
+					Messages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\
+					",
+					CACHE
 						.discord
 						.guild(guild_id)
-						.await?;
-					format!("
-						## Started new topic in {}\n**{topic_name}** has been created, server staff will get back to you shortly.\n\
-						Messages from staff will appear here in this DM, feel free to add anything to this topic below while you wait.\n\
-						\n\
-						You can switch topics using </set_topic:{}>, and close this topic using </close_topic:{}>
-						",
-						guild.name,
-						app_command_id("set_topic").await.unwrap(),
-						app_command_id("close_topic").await.unwrap()
-					)
-				};
+						.await?
+						.name
+				)?;
+				write!(&mut message_content,
+					"You can switch topics using </set_topic:{}>, and close this topic using </close_topic:{}>",
+					app_command_id("set_topic").await.unwrap(),
+					app_command_id("close_topic").await.unwrap()
+				)?;
+
 				let message_result = if interaction_create.is_dm() {
 					if let Err(error) = DISCORD_INTERACTION_CLIENT
 						.create_response(interaction_create.id, &interaction_create.token, &InteractionResponse {

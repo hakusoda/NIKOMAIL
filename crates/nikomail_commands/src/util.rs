@@ -89,7 +89,8 @@ impl<'a> CloseTopicOperation<'a> {
 						.await?;
 					format!("## Your topic in {} has been closed\n**{channel_name}** has been closed by server staff, feel free to open another one!", guild.name)
 				};
-				DISCORD_CLIENT.create_message(private_channel_id)
+				DISCORD_CLIENT
+					.create_message(private_channel_id)
 					.content(&content)
 					.components(&[create_topic_button(Some(guild_id)).await?])
 					.await?;

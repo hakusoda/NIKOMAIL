@@ -11,7 +11,13 @@ pub mod interactions;
 
 pub type CommandsFuture = impl Future<Output = Vec<Command>> + Send;
 pub static DISCORD_APP_COMMANDS: Lazy<Vec<Command>, CommandsFuture> = Lazy::new(async {
-	DISCORD_INTERACTION_CLIENT.global_commands().await.unwrap().model().await.unwrap()
+	DISCORD_INTERACTION_CLIENT
+		.global_commands()
+		.await
+		.unwrap()
+		.model()
+		.await
+		.unwrap()
 });
 
 pub async fn app_command_id(name: &str) -> Option<Id<CommandMarker>> {

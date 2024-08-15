@@ -24,7 +24,9 @@ impl DiscordCache {
 			None => {
 				let new_model = ChannelModel::get(channel_id)
 					.await?;
-				self.channels.entry(channel_id)
+				self
+					.channels
+					.entry(channel_id)
 					.insert(new_model)
 					.downgrade()
 			}
@@ -37,7 +39,8 @@ impl DiscordCache {
 			None => {
 				let new_model = GuildModel::get(guild_id)
 					.await?;
-				self.guilds
+				self
+					.guilds
 					.entry(guild_id)
 					.insert(new_model)
 					.downgrade()
@@ -54,7 +57,9 @@ impl DiscordCache {
 				let new_model_id = new_model.id;
 
 				self.channels.insert(new_model_id, new_model);
-				self.private_channels.entry(user_id)
+				self
+					.private_channels
+					.entry(user_id)
 					.insert(new_model_id)
 					.downgrade()
 			}
