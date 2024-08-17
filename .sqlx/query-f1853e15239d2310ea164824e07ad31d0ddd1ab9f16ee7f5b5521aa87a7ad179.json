@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t\tINSERT INTO relayed_messages (author_id, topic_id, source_channel_id, source_message_id, relayed_channel_id, relayed_message_id, is_topic_starter)\n\t\t\tVALUES ($1, $2, $3, $4, $5, $6, $7)\n\t\t\tRETURNING id\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f1853e15239d2310ea164824e07ad31d0ddd1ab9f16ee7f5b5521aa87a7ad179"
+}

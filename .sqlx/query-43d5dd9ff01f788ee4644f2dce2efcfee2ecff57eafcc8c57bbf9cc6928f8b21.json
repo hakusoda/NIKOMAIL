@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n\t\t\t\t\tSELECT id\n\t\t\t\t\tFROM topics\n\t\t\t\t\tWHERE author_id = $1\n\t\t\t\t\t",
+  "query": "\n\t\t\tSELECT id\n\t\t\tFROM topics\n\t\t\tWHERE author_id = $1\n\t\t\t",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "d3fa96c0f9f684288b8ab2a907bebe3ffb49542fe0a61df7c5c3f6d6b75c5e2b"
+  "hash": "43d5dd9ff01f788ee4644f2dce2efcfee2ecff57eafcc8c57bbf9cc6928f8b21"
 }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t\t\tINSERT INTO user_states\n\t\t\t\tVALUES ($1, $2)\n\t\t\t\tON CONFLICT (id)\n\t\t\t\tDO UPDATE SET current_topic_id = $2\n\t\t\t\t",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a8d3f3cc8bc3fe4ae42e30efa75d8241e716a6d2d1832b0c7faefb3b0cd0ea2b"
+}

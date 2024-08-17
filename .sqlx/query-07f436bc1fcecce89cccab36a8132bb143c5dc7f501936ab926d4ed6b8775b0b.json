@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\t\tSELECT id, author_id, topic_id, source_channel_id, source_message_id, relayed_channel_id, relayed_message_id, is_topic_starter\n\t\t\tFROM relayed_messages\n\t\t\t",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "author_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "topic_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "source_channel_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "source_message_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "relayed_channel_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "relayed_message_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_topic_starter",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "07f436bc1fcecce89cccab36a8132bb143c5dc7f501936ab926d4ed6b8775b0b"
+}

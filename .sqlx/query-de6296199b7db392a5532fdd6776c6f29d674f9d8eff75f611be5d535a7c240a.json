@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n\t\t\t\t\t\t\t\tINSERT INTO topics\n\t\t\t\t\t\t\t\tVALUES ($1, $2, $3)\n\t\t\t\t\t\t\t\t",
+  "query": "\n\t\t\t\t\tINSERT INTO topics\n\t\t\t\t\tVALUES ($1, $2, $3)\n\t\t\t\t\t",
   "describe": {
     "columns": [],
     "parameters": {
@@ -12,5 +12,5 @@
     },
     "nullable": []
   },
-  "hash": "b7b1ab9abc5b80dd3f98454bfccde62b2c4081c4d48458990eeb8e46bcf6c830"
+  "hash": "de6296199b7db392a5532fdd6776c6f29d674f9d8eff75f611be5d535a7c240a"
 }

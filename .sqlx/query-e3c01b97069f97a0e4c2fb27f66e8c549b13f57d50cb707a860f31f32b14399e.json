@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n\t\tINSERT INTO servers (id, forum_channel_id)\n\t\tVALUES ($1, $2)\n\t\tON CONFLICT (id)\n\t\tDO UPDATE SET forum_channel_id = $1\n\t\t",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3c01b97069f97a0e4c2fb27f66e8c549b13f57d50cb707a860f31f32b14399e"
+}

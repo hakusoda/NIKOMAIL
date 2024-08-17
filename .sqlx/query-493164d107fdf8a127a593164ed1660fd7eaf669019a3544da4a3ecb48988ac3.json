@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n\t\t\tSELECT id, forum_channel_id\n\t\t\tFROM servers\n\t\t\tWHERE id = $1\n\t\t\t",
+  "query": "\n\t\t\tSELECT id, blacklisted_user_ids, forum_channel_id\n\t\t\tFROM servers\n\t\t\tWHERE id = $1\n\t\t\t",
   "describe": {
     "columns": [
       {
@@ -10,6 +10,11 @@
       },
       {
         "ordinal": 1,
+        "name": "blacklisted_user_ids",
+        "type_info": "Int8Array"
+      },
+      {
+        "ordinal": 2,
         "name": "forum_channel_id",
         "type_info": "Int8"
       }
@@ -21,8 +26,9 @@
     },
     "nullable": [
       false,
+      false,
       true
     ]
   },
-  "hash": "ebf92b07d741d0af4985462a26b379b3aa83d5b74572d0b03d6c180f0e019ea8"
+  "hash": "493164d107fdf8a127a593164ed1660fd7eaf669019a3544da4a3ecb48988ac3"
 }
