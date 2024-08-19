@@ -22,10 +22,10 @@ sqlx = { version = "0.8.0", features = ["uuid", "json", "chrono", "macros", "pos
 thiserror = "1.0.63"
 tokio = { version = "1.39.3", features = ["full"] }
 tracing = "0.1.40"
-twilight-http = { git = "https://github.com/twilight-rs/twilight.git", rev = "f963532", features = ["simd-json"] }
-twilight-gateway = { git = "https://github.com/twilight-rs/twilight.git", rev = "f963532", features = ["simd-json"] }
-twilight-model = { git = "https://github.com/twilight-rs/twilight.git", rev = "f963532" }
-twilight-util = { git = "https://github.com/twilight-rs/twilight.git", rev = "f963532", features = ["builder"] }
+twilight-http = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["simd-json"] }
+twilight-gateway = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["simd-json"] }
+twilight-model = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028" }
+twilight-util = { git = "https://github.com/twilight-rs/twilight.git", rev = "6a44028", features = ["builder"] }
 
 [profile.dev]
 lto = false
